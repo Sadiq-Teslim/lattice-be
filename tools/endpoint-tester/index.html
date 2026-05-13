@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lattice Endpoint Tester</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header class="topbar">
+        <div>
+          <h1>Lattice Endpoint Tester</h1>
+          <p>Non-Squad backend checks for demo rehearsal.</p>
+        </div>
+        <label>
+          API base
+          <input id="apiBase" value="http://127.0.0.1:8010/api/v1" />
+        </label>
+      </header>
+
+      <section class="grid">
+        <article class="panel">
+          <h2>Health</h2>
+          <button id="healthBtn">Check Health</button>
+          <pre id="healthOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Liveness</h2>
+          <div class="fields">
+            <label>Blinks <input id="blinkCount" type="number" value="2" /></label>
+            <label>Head turn degrees <input id="headTurn" type="number" value="18" /></label>
+            <label>Confidence <input id="liveConfidence" type="number" step="0.01" value="0.91" /></label>
+          </div>
+          <button id="livenessBtn">Evaluate Liveness</button>
+          <pre id="livenessOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Deepfake</h2>
+          <input id="frameFile" type="file" accept="image/*" />
+          <button id="deepfakeStatusBtn">Model Status</button>
+          <button id="deepfakeBtn">Classify Frame</button>
+          <pre id="deepfakeOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Seed Payroll</h2>
+          <div class="fields">
+            <label>Workers <input id="workerCount" type="number" value="1000" /></label>
+            <label>Ghosts <input id="ghostCount" type="number" value="50" /></label>
+            <label>Seed <input id="seedValue" type="number" value="42" /></label>
+          </div>
+          <button id="seedBtn">Seed Demo Payroll</button>
+          <pre id="seedOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Anomalies</h2>
+          <label>Pay cycle ID <input id="anomalyPayCycleId" /></label>
+          <button id="anomalyBtn">Scan Anomalies</button>
+          <pre id="anomalyOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Workers</h2>
+          <label>Ministry <input id="workerMinistry" /></label>
+          <button id="workersBtn">List Workers</button>
+          <pre id="workersOut"></pre>
+        </article>
+
+        <article class="panel wide">
+          <h2>Document Consistency</h2>
+          <p class="hint">Checks date contradictions, missing documents, and duplicate document numbers.</p>
+          <div class="actions">
+            <button id="documentsCleanBtn">Run Clean Example</button>
+            <button id="documentsBadBtn">Run Bad Example</button>
+          </div>
+          <pre id="documentsOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Pay Cycles</h2>
+          <button id="payCyclesBtn">List Pay Cycles</button>
+          <pre id="payCyclesOut"></pre>
+        </article>
+
+        <article class="panel wide">
+          <h2>Verification Flow</h2>
+          <div class="fields two">
+            <label>Worker ID <input id="verifyWorkerId" /></label>
+            <label>Pay cycle ID <input id="verifyPayCycleId" /></label>
+            <label>Deepfake status
+              <select id="verifyDeepfakeStatus">
+                <option>CLEAN</option>
+                <option>DEEPFAKE_DETECTED</option>
+              </select>
+            </label>
+            <label>BVN status
+              <select id="verifyBvnStatus">
+                <option>BVN_MATCH</option>
+                <option>BVN_MISMATCH</option>
+              </select>
+            </label>
+          </div>
+          <div class="actions">
+            <button id="createSessionBtn">Create Session</button>
+            <button id="submitEvidenceBtn">Submit Evidence</button>
+            <button id="finalizeBtn">Finalize VIQ</button>
+          </div>
+          <label>Session ID <input id="sessionId" /></label>
+          <pre id="verificationOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>VIQs</h2>
+          <label>Pay cycle ID <input id="viqPayCycleId" /></label>
+          <button id="viqBtn">List VIQs</button>
+          <pre id="viqOut"></pre>
+        </article>
+
+        <article class="panel wide">
+          <h2>SDK</h2>
+          <p class="hint">One-call verify-and-disburse flow. Transfer is off by default.</p>
+          <button id="sdkBtn">Run SDK Verification</button>
+          <pre id="sdkOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Bias Audit</h2>
+          <p class="hint">Synthetic IV-VI liveness audit metrics.</p>
+          <button id="biasAuditBtn">Run Bias Audit</button>
+          <pre id="biasAuditOut"></pre>
+        </article>
+
+        <article class="panel">
+          <h2>Queue</h2>
+          <p class="hint">Queued SDK verification job, transfer off.</p>
+          <button id="queueBtn">Enqueue SDK Job</button>
+          <pre id="queueOut"></pre>
+        </article>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

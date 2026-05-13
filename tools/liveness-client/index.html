@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Lattice Liveness Client</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>Lattice Liveness</h1>
+          <p>MediaPipe blink + head-turn challenge.</p>
+        </div>
+        <label>
+          API base
+          <input id="apiBase" value="http://127.0.0.1:8010/api/v1" />
+        </label>
+      </header>
+
+      <section class="stage">
+        <div class="camera">
+          <video id="video" autoplay playsinline muted></video>
+          <canvas id="overlay"></canvas>
+        </div>
+
+        <aside>
+          <h2>Challenge</h2>
+          <p class="challenge">Blink twice, then turn your head left or right.</p>
+
+          <dl>
+            <div><dt>Status</dt><dd id="status">Idle</dd></div>
+            <div><dt>Blinks</dt><dd id="blinkCount">0</dd></div>
+          <div><dt>Head turn</dt><dd id="headTurn">0°</dd></div>
+          <div><dt>Confidence</dt><dd id="confidence">0.00</dd></div>
+          <div><dt>Offline queue</dt><dd id="pendingCount">0</dd></div>
+        </dl>
+
+        <div class="actions">
+          <button id="startBtn">Start Camera</button>
+          <button id="resetBtn">Reset</button>
+          <button id="submitBtn">Submit Result</button>
+          <button id="syncBtn">Sync Cached</button>
+        </div>
+
+          <pre id="output"></pre>
+        </aside>
+      </section>
+    </main>
+
+    <script type="module" src="./liveness.js"></script>
+  </body>
+</html>
