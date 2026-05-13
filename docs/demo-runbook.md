@@ -30,6 +30,15 @@ In another terminal:
 docker compose exec api python -m app.db.init_db
 ```
 
+On hosts without shell access, set this environment variable for the first deploy:
+
+```env
+INIT_DB_ON_STARTUP=true
+```
+
+The app will call SQLAlchemy `create_all()` during startup. After the first successful boot, you can
+leave it on for the hackathon demo or turn it back to `false` once tables exist.
+
 ## 3. Seed Demo Payroll
 
 ```text

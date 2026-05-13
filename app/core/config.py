@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     cors_allow_origins: list[str] = ["*"]
 
     database_url: str = "postgresql+psycopg://lattice:lattice@localhost:5432/lattice"
+    init_db_on_startup: bool = False
     lattice_api_key: str | None = None
 
     squad_base_url: str = "https://sandbox-api-d.squadco.com"
