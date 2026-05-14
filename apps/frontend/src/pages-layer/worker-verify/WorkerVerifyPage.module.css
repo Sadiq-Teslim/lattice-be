@@ -1,0 +1,246 @@
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+  color: var(--color-text-primary);
+  display: grid;
+  place-items: center;
+  padding: var(--space-md);
+}
+
+.phone {
+  width: min(100%, 480px);
+  min-height: calc(100vh - 32px);
+  display: grid;
+  align-content: start;
+  gap: var(--space-md);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-brand);
+  font-size: 22px;
+  font-weight: 700;
+  padding: var(--space-sm) 0;
+}
+
+.offline,
+.error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  border-radius: var(--radius-card);
+  padding: var(--space-md);
+  font-weight: 700;
+}
+
+.offline {
+  border: 1px solid var(--color-warning);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.error {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.centerCard,
+.screen {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+.centerCard {
+  width: min(100%, 420px);
+  justify-items: start;
+}
+
+.centerCard h1,
+.screen h1 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.centerCard p,
+.screen p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.workerBlock {
+  display: grid;
+  gap: var(--space-xs);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: #f8fbff;
+  padding: var(--space-md);
+}
+
+.workerBlock span {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.workerBlock strong,
+.workerBlock small,
+.meta,
+.footer {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.otpGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: var(--space-sm);
+}
+
+.otpGrid input {
+  height: 56px;
+  min-width: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: var(--radius-button);
+  background: white;
+  color: var(--color-text-primary);
+  font-size: 22px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.otpGrid input:focus {
+  border: 2px solid var(--color-brand);
+  outline: 0;
+}
+
+.camera {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(90deg, rgba(27, 79, 216, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(27, 79, 216, 0.08) 1px, transparent 1px),
+    #eef4ff;
+  background-size: 32px 32px;
+  color: var(--color-brand);
+}
+
+.mesh {
+  position: absolute;
+  width: 132px;
+  height: 168px;
+  border: 2px solid rgba(27, 79, 216, 0.45);
+  border-radius: 48% 48% 46% 46%;
+  box-shadow: inset 0 0 0 12px rgba(27, 79, 216, 0.06);
+}
+
+.livenessGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.checks {
+  display: grid;
+  gap: var(--space-md);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.checks li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-text-disabled);
+  font-weight: 800;
+}
+
+.checks .done {
+  color: var(--color-success);
+}
+
+.resultHeader {
+  width: min(100%, 480px);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-sm);
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+  color: white;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.resultHeader h1,
+.resultHeader p {
+  margin: 0;
+}
+
+.pass {
+  background: var(--color-success);
+}
+
+.review {
+  background: var(--color-warning);
+}
+
+.fail {
+  background: var(--color-danger);
+}
+
+.resultBody {
+  width: min(100%, 480px);
+  display: grid;
+  justify-items: center;
+  gap: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius-card) var(--radius-card);
+  background: white;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.resultBody strong {
+  font-size: 28px;
+}
+
+.resultBody span {
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.flagList {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-weight: 700;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  justify-content: center;
+  padding: var(--space-sm) 0;
+}
+
+@media (max-width: 420px) {
+  .shell {
+    padding: var(--space-sm);
+  }
+
+  .screen,
+  .centerCard {
+    padding: var(--space-md);
+  }
+}

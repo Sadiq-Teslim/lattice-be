@@ -4,6 +4,9 @@ import type {
   BiasAuditResponse,
   DemoSeedResponse,
   JobResponse,
+  LivenessEvaluationResponse,
+  VerificationFinalizeResponse,
+  VerificationSession,
   VerifyAndDisburseResponse,
   Worker,
 } from "./types";
@@ -59,6 +62,46 @@ export const latticeApi = {
 
   scanAnomalies: (payCycleId: string) =>
     request<AnomalyScanResponse>(`/demo/anomalies?pay_cycle_id=${encodeURIComponent(payCycleId)}`),
+
+  evaluateLiveness: (payload: {
+    challenge: string;
+    blink_count: number;
+    head_turn_degrees: number;
+    confidence: number;
+    attempts: number;
+    captured_at: string;
+  }) =>
+    request<LivenessEvaluationResponse>("/ai/liveness/evaluate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  createVerificationSession: (workerId: string, payCycleId: string) =>
+    request<VerificationSession>("/verification/sessions", {
+      method: "POST",
+      body: JSON.stringify({ worker_id: workerId, pay_cycle_id: payCycleId }),
+    }),
+
+  submitVerificationEvidence: (
+    sessionId: string,
+    evidence: {
+      liveness?: Record<string, unknown>;
+      deepfake?: Record<string, unknown>;
+      face_match?: Record<string, unknown>;
+      bvn?: Record<string, unknown>;
+      documents?: Record<string, unknown>;
+    },
+  ) =>
+    request<VerificationSession>(`/verification/sessions/${encodeURIComponent(sessionId)}/evidence`, {
+      method: "POST",
+      body: JSON.stringify(evidence),
+    }),
+
+  finalizeVerificationSession: (sessionId: string) =>
+    request<VerificationFinalizeResponse>(
+      `/verification/sessions/${encodeURIComponent(sessionId)}/finalize`,
+      { method: "POST" },
+    ),
 
   verifyAndDisburse: (workerId: string, payCycleId: string) =>
     request<VerifyAndDisburseResponse>("/sdk/verify-and-disburse", {

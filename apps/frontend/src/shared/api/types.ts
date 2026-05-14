@@ -70,6 +70,33 @@ export type Viq = {
   payment_status: string;
 };
 
+export type VerificationSession = {
+  id: string;
+  worker_id: string;
+  pay_cycle_id: string;
+  session_token: string;
+  status: string;
+  liveness_status: string | null;
+  deepfake_status: string | null;
+  anomaly_status: string | null;
+  bvn_status: string | null;
+  attempts: number;
+  evidence: Record<string, unknown> | null;
+};
+
+export type VerificationFinalizeResponse = {
+  session: VerificationSession;
+  viq: Viq;
+};
+
+export type LivenessEvaluationResponse = {
+  status: "PASSED" | "FAILED";
+  confidence: number;
+  attempts: number;
+  challenge: string;
+  reasons: string[];
+};
+
 export type VerifyAndDisburseResponse = {
   worker: Worker;
   viq: Viq;
