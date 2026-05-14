@@ -65,7 +65,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The Lattice API is taking too long to respond. Please retry.");
+      throw new Error("The verification service is taking too long to respond. Please retry.");
     }
     throw error;
   } finally {
