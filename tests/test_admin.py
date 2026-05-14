@@ -4,6 +4,7 @@ from app.api.routes.admin import (
     approve_payment,
     create_exercise,
     create_public_exercise_submission,
+    delete_exercise,
     flag_investigation,
     get_public_exercise,
     publish_exercise,
@@ -127,3 +128,33 @@ def test_public_exercise_link_loads_and_accepts_submission(db_session) -> None:
     assert public.id == published.id
     assert submission.exercise_id == published.id
     assert submission.decision == "PASS"
+
+
+def test_admin_can_delete_verification_exercise_and_submissions(db_session) -> None:
+    exercise = create_exercise(
+        VerificationExerciseCreateRequest(
+            ministry="Ogun State Ministry of Education",
+            name="June 2026 Verification Exercise",
+            scope="Teaching staff only",
+            rules=["proof_of_life"],
+            documents=["Staff ID card"],
+        ),
+        db=db_session,
+    )
+    published = publish_exercise(exercise.id, db=db_session)
+    create_public_exercise_submission(
+        published.public_token,
+        ExerciseSubmissionCreateRequest(
+            worker_code="ADM-001",
+            full_name="Adebayo Adeyemi",
+            document_status="DOCUMENTS_SUBMITTED",
+            liveness_status="PASSED",
+            decision="PASS",
+            payload={"documents_submitted": ["Staff ID card"]},
+        ),
+        db=db_session,
+    )
+
+    delete_exercise(published.id, db=db_session)
+
+    assert db_session.get(type(published), published.id) is None

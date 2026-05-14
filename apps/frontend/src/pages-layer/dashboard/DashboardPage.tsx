@@ -471,6 +471,22 @@ export function DashboardPage() {
     }
   }
 
+  async function deleteExercise(exercise: VerificationExercise) {
+    const confirmed = window.confirm(`Delete "${exercise.name}" and its submissions?`);
+    if (!confirmed) return;
+    const result = await runAction(`exercise-delete-${exercise.id}`, () =>
+      latticeApi.deleteVerificationExercise(exercise.id),
+    );
+    if (result !== null) {
+      setExercises((current) => current.filter((item) => item.id !== exercise.id));
+      if (editingExerciseId === exercise.id) {
+        setEditingExerciseId(null);
+        setExerciseDrawerOpen(false);
+      }
+      setExerciseSubmissions([]);
+    }
+  }
+
   function openNewExercise() {
     setEditingExerciseId(null);
     setExerciseName("June 2026 Verification Exercise");
@@ -608,6 +624,7 @@ export function DashboardPage() {
             onCloseDrawer={() => setExerciseDrawerOpen(false)}
             onDocumentToggle={toggleExerciseDocument}
             onEdit={editExercise}
+            onDelete={deleteExercise}
             onNameChange={setExerciseName}
             onNew={openNewExercise}
             onPublish={publishExercise}
@@ -913,6 +930,7 @@ function ExercisesView({
   onCloseDrawer,
   onDocumentToggle,
   onEdit,
+  onDelete,
   onNameChange,
   onNew,
   onPublish,
@@ -932,6 +950,7 @@ function ExercisesView({
   onCloseDrawer: () => void;
   onDocumentToggle: (document: string) => void;
   onEdit: (exercise: VerificationExercise) => void;
+  onDelete: (exercise: VerificationExercise) => void;
   onNameChange: (value: string) => void;
   onNew: () => void;
   onPublish: () => void;
@@ -1022,6 +1041,9 @@ function ExercisesView({
                       </a>
                     </>
                   ) : null}
+                  <Button size="small" variant="destructive" onClick={() => onDelete(exercise)}>
+                    Delete
+                  </Button>
                   <Button
                     size="small"
                     loading={publishLoading && editingExerciseId === exercise.id}
@@ -1474,34 +1496,10 @@ function absoluteExerciseUrl(path: string) {
 function exercisePublicUrl(exercise: VerificationExercise) {
   const path = exercise.public_url ?? `/verify/exercise/${exercise.public_token ?? exercise.id}`;
   const url = new URL(absoluteExerciseUrl(path));
-  url.searchParams.set("exercise", encodeExercisePayload({
-    id: exercise.id,
-    ministry: exercise.ministry,
-    name: exercise.name,
-    scope: exercise.scope,
-    rules: exercise.rules,
-    documents: exercise.documents,
-    status: exercise.status,
-    public_token: exercise.public_token,
-    public_url: `${url.origin}${url.pathname}`,
-    created_at: exercise.created_at,
-    published_at: exercise.published_at,
-    updated_at: exercise.updated_at,
-  }));
   if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
-    url.searchParams.set("api", env.apiUrl);
+    url.searchParams.set("api", "local");
   }
   return url.toString();
-}
-
-function encodeExercisePayload(exercise: VerificationExercise) {
-  const json = JSON.stringify(exercise);
-  const bytes = new TextEncoder().encode(json);
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function documentResultsFromActions(actions: StaffAction[]) {

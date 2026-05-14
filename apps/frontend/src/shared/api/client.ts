@@ -26,6 +26,9 @@ type RequestOptions = RequestInit & {
 function apiBaseUrl() {
   if (typeof window !== "undefined") {
     const override = new URLSearchParams(window.location.search).get("api");
+    if (override === "local") {
+      return "http://127.0.0.1:8010/api/v1";
+    }
     if (override && /^https?:\/\//.test(override)) {
       return override.replace(/\/$/, "");
     }
@@ -170,6 +173,11 @@ export const latticeApi = {
       `/admin/verification-exercises/${encodeURIComponent(exerciseId)}/publish`,
       { method: "POST" },
     ),
+
+  deleteVerificationExercise: (exerciseId: string) =>
+    request<{ status: string }>(`/admin/verification-exercises/${encodeURIComponent(exerciseId)}`, {
+      method: "DELETE",
+    }),
 
   getPublicVerificationExercise: (token: string) =>
     request<VerificationExercise>(

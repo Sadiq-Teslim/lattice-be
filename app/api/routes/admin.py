@@ -258,6 +258,21 @@ def update_exercise(
     return exercise
 
 
+@router.delete("/verification-exercises/{exercise_id}")
+def delete_exercise(exercise_id: str, db: Session = db_session) -> dict[str, str]:
+    exercise = _exercise(db, exercise_id)
+    db.query(ExerciseSubmission).filter(ExerciseSubmission.exercise_id == exercise.id).delete()
+    db.add(
+        AuditLog(
+            event_type="VERIFICATION_EXERCISE_DELETED",
+            payload={"exercise_id": exercise.id, "name": exercise.name, "ministry": exercise.ministry},
+        )
+    )
+    db.delete(exercise)
+    db.commit()
+    return {"status": "deleted"}
+
+
 @router.post(
     "/verification-exercises/{exercise_id}/publish",
     response_model=VerificationExerciseResponse,
