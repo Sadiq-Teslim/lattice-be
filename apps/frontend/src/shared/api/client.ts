@@ -23,6 +23,16 @@ type RequestOptions = RequestInit & {
   protected?: boolean;
 };
 
+function apiBaseUrl() {
+  if (typeof window !== "undefined") {
+    const override = new URLSearchParams(window.location.search).get("api");
+    if (override && /^https?:\/\//.test(override)) {
+      return override.replace(/\/$/, "");
+    }
+  }
+  return env.apiUrl.replace(/\/$/, "");
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 25000);
@@ -36,7 +46,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   try {
-    const response = await fetch(`${env.apiUrl}${path}`, {
+    const response = await fetch(`${apiBaseUrl()}${path}`, {
       ...options,
       headers,
       cache: "no-store",

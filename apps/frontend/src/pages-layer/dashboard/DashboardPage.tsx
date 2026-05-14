@@ -913,8 +913,8 @@ function ExercisesView({
             <span>Publish status</span>
             <strong>{currentExercise?.status ?? "Draft ready"}</strong>
             {currentExercise?.public_url ? (
-              <a href={absoluteExerciseUrl(currentExercise.public_url)} target="_blank">
-                {absoluteExerciseUrl(currentExercise.public_url)}
+              <a href={exercisePublicUrl(currentExercise)} target="_blank">
+                {exercisePublicUrl(currentExercise)}
               </a>
             ) : (
               <p>Save and publish to generate a worker-facing link.</p>
@@ -974,7 +974,7 @@ function ExercisesView({
               exercise.name,
               exercise.scope,
               exercise.status,
-              exercise.public_url ? absoluteExerciseUrl(exercise.public_url) : "Draft",
+              exercise.public_url ? exercisePublicUrl(exercise) : "Draft",
             ])}
           />
         ) : (
@@ -1309,6 +1309,39 @@ function documentEvidence(documents: DocumentConsistencyResponse) {
 function absoluteExerciseUrl(path: string) {
   if (path.startsWith("http")) return path;
   return `${env.publicAppUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+function exercisePublicUrl(exercise: VerificationExercise) {
+  const path = exercise.public_url ?? `/verify/exercise/${exercise.public_token ?? exercise.id}`;
+  const url = new URL(absoluteExerciseUrl(path));
+  url.searchParams.set("exercise", encodeExercisePayload({
+    id: exercise.id,
+    ministry: exercise.ministry,
+    name: exercise.name,
+    scope: exercise.scope,
+    rules: exercise.rules,
+    documents: exercise.documents,
+    status: exercise.status,
+    public_token: exercise.public_token,
+    public_url: `${url.origin}${url.pathname}`,
+    created_at: exercise.created_at,
+    published_at: exercise.published_at,
+    updated_at: exercise.updated_at,
+  }));
+  if (typeof window !== "undefined" && ["localhost", "127.0.0.1"].includes(window.location.hostname)) {
+    url.searchParams.set("api", env.apiUrl);
+  }
+  return url.toString();
+}
+
+function encodeExercisePayload(exercise: VerificationExercise) {
+  const json = JSON.stringify(exercise);
+  const bytes = new TextEncoder().encode(json);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 function documentResultsFromActions(actions: StaffAction[]) {

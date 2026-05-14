@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   Camera,
@@ -21,6 +21,7 @@ const flowSteps = ["Identity", "Documents", "Liveness", "Submit"];
 
 export function ExerciseVerifyPage() {
   const params = useParams<{ token: string }>();
+  const searchParams = useSearchParams();
   const token = params.token;
   const [step, setStep] = useState<Step>("loading");
   const [exercise, setExercise] = useState<VerificationExercise | null>(null);
@@ -42,18 +43,27 @@ export function ExerciseVerifyPage() {
 
   useEffect(() => {
     void loadExercise();
-  }, [token]);
+  }, [token, searchParams]);
 
   async function loadExercise() {
     setError(null);
+    const embeddedExercise = decodeExerciseParam(searchParams.get("exercise"));
+    if (embeddedExercise) {
+      setExercise(embeddedExercise);
+      setCheckedDocuments(new Set(embeddedExercise.documents.length ? [] : ["No documents required"]));
+      setStep("identity");
+    }
+
     try {
       const result = await latticeApi.getPublicVerificationExercise(token);
       setExercise(result);
       setCheckedDocuments(new Set(result.documents.length ? [] : ["No documents required"]));
       setStep("identity");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open this verification link.");
-      setStep("identity");
+      if (!embeddedExercise) {
+        setError(err instanceof Error ? err.message : "Could not open this verification link.");
+        setStep("identity");
+      }
     }
   }
 
@@ -248,4 +258,21 @@ export function ExerciseVerifyPage() {
       </section>
     </main>
   );
+}
+
+function decodeExerciseParam(value: string | null): VerificationExercise | null {
+  if (!value || typeof window === "undefined") return null;
+  try {
+    const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = `${base64}${"=".repeat((4 - (base64.length % 4)) % 4)}`;
+    const binary = window.atob(padded);
+    const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    const decoded = JSON.parse(new TextDecoder().decode(bytes)) as VerificationExercise;
+    if (!decoded.id || !decoded.name || !Array.isArray(decoded.documents) || !Array.isArray(decoded.rules)) {
+      return null;
+    }
+    return decoded;
+  } catch {
+    return null;
+  }
 }
