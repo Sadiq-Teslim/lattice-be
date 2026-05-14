@@ -29,6 +29,16 @@ export type DemoSeedResponse = {
   injected_ghost_workers: number;
 };
 
+export type PayCycle = {
+  id: string;
+  name: string;
+  ministry: string;
+  status: string;
+  started_at: string | null;
+  closed_at: string | null;
+  created_at: string;
+};
+
 export type AnomalyResult = {
   worker_code: string;
   anomaly_score: number;
@@ -119,6 +129,69 @@ export type VerifyAndDisburseResponse = {
   viq: Viq;
   payment_attempted: boolean;
   payment_blocked_reason: string | null;
+};
+
+export type StaffAction = {
+  id: string;
+  worker_id: string;
+  pay_cycle_id: string | null;
+  viq_id: string | null;
+  action_type: "APPROVE_PAYMENT" | "FLAG_INVESTIGATION" | "DOCUMENT_CHECK" | string;
+  status: string;
+  note: string | null;
+  actor: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type ReleaseEligibleResponse = {
+  released: StaffAction[];
+  skipped: Array<{ worker_id: string; reason: string }>;
+};
+
+export type VerificationExercise = {
+  id: string;
+  ministry: string;
+  name: string;
+  scope: string;
+  rules: string[];
+  documents: string[];
+  status: "DRAFT" | "PUBLISHED" | string;
+  public_token: string | null;
+  public_url: string | null;
+  created_at: string;
+  published_at: string | null;
+  updated_at: string;
+};
+
+export type ExerciseSubmission = {
+  id: string;
+  exercise_id: string;
+  worker_id: string | null;
+  worker_code: string | null;
+  full_name: string;
+  status: string;
+  decision: "PASS" | "REVIEW" | "FAIL" | string;
+  document_status: string | null;
+  liveness_status: string | null;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type AdminSummary = {
+  ministry: string | null;
+  pay_cycle_id: string | null;
+  workers: number;
+  viqs: number;
+  pass_count: number;
+  review_count: number;
+  fail_count: number;
+  approved_count: number;
+  flagged_count: number;
+  held_count: number;
+  gross_payroll: string;
+  eligible_payroll: string;
+  held_payroll: string;
 };
 
 export type SquadAccountLookupResponse = {

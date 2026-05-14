@@ -1,13 +1,20 @@
 import { env } from "@/shared/config/env";
 import type {
   AnomalyScanResponse,
+  AdminSummary,
   BiasAuditResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
+  ExerciseSubmission,
   LivenessEvaluationResponse,
+  PayCycle,
+  ReleaseEligibleResponse,
   SquadAccountLookupResponse,
+  StaffAction,
   VerificationFinalizeResponse,
+  VerificationExercise,
   VerificationSession,
+  Viq,
   VerifyAndDisburseResponse,
   Worker,
 } from "./types";
@@ -70,6 +77,8 @@ export const latticeApi = {
       }),
     }),
 
+  listPayCycles: () => request<PayCycle[]>("/pay-cycles?limit=100"),
+
   listWorkers: async (ministry: string) => {
     const workers = await request<Worker[]>(`/workers?ministry=${encodeURIComponent(ministry)}&limit=100`);
     return workers.sort((left, right) => {
@@ -81,6 +90,88 @@ export const latticeApi = {
 
   scanAnomalies: (payCycleId: string) =>
     request<AnomalyScanResponse>(`/demo/anomalies?pay_cycle_id=${encodeURIComponent(payCycleId)}`),
+
+  listViqs: (payCycleId: string) =>
+    request<Viq[]>(`/viq?pay_cycle_id=${encodeURIComponent(payCycleId)}&limit=1000`),
+
+  listStaffActions: (ministry: string, payCycleId?: string) => {
+    const params = new URLSearchParams({ ministry, limit: "1000" });
+    if (payCycleId) params.set("pay_cycle_id", payCycleId);
+    return request<StaffAction[]>(`/admin/staff-actions?${params.toString()}`);
+  },
+
+  approvePayment: (payload: { worker_id: string; pay_cycle_id?: string; viq_id?: string; note?: string }) =>
+    request<StaffAction>("/admin/staff-actions/approve-payment", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  flagInvestigation: (payload: { worker_id: string; pay_cycle_id?: string; viq_id?: string; note?: string }) =>
+    request<StaffAction>("/admin/staff-actions/flag-investigation", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  recordDocumentCheck: (payload: {
+    worker_id: string;
+    pay_cycle_id?: string;
+    viq_id?: string;
+    payload: DocumentConsistencyResponse;
+  }) =>
+    request<StaffAction>("/admin/staff-actions/document-check", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  releaseEligible: (payload: { pay_cycle_id: string; worker_ids?: string[] }) =>
+    request<ReleaseEligibleResponse>("/admin/disbursements/release-eligible", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  listVerificationExercises: (ministry: string) =>
+    request<VerificationExercise[]>(
+      `/admin/verification-exercises?ministry=${encodeURIComponent(ministry)}&limit=100`,
+    ),
+
+  createVerificationExercise: (payload: {
+    ministry: string;
+    name: string;
+    scope: string;
+    rules: string[];
+    documents: string[];
+  }) =>
+    request<VerificationExercise>("/admin/verification-exercises", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  updateVerificationExercise: (
+    exerciseId: string,
+    payload: Partial<{ name: string; scope: string; rules: string[]; documents: string[] }>,
+  ) =>
+    request<VerificationExercise>(`/admin/verification-exercises/${encodeURIComponent(exerciseId)}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
+  publishVerificationExercise: (exerciseId: string) =>
+    request<VerificationExercise>(
+      `/admin/verification-exercises/${encodeURIComponent(exerciseId)}/publish`,
+      { method: "POST" },
+    ),
+
+  listExerciseSubmissions: (exerciseId: string) =>
+    request<ExerciseSubmission[]>(
+      `/admin/verification-exercises/${encodeURIComponent(exerciseId)}/submissions`,
+    ),
+
+  adminSummary: (params: { ministry?: string; pay_cycle_id?: string }) => {
+    const query = new URLSearchParams();
+    if (params.ministry) query.set("ministry", params.ministry);
+    if (params.pay_cycle_id) query.set("pay_cycle_id", params.pay_cycle_id);
+    return request<AdminSummary>(`/admin/reports/summary?${query.toString()}`);
+  },
 
   accountLookup: (payload: { bank_code: string; account_number: string }) =>
     request<SquadAccountLookupResponse>("/squad/account-lookup", {

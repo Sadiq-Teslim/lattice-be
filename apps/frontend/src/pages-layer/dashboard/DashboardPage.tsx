@@ -12,9 +12,13 @@ import { latticeApi } from "@/shared/api/client";
 import type {
   AnomalyResult,
   AnomalyScanResponse,
+  AdminSummary,
   BiasAuditResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
+  ExerciseSubmission,
+  StaffAction,
+  VerificationExercise,
   Viq,
   Worker,
 } from "@/shared/api/types";
@@ -85,6 +89,10 @@ export function DashboardPage() {
   const [anomalyScan, setAnomalyScan] = useState<AnomalyScanResponse | null>(null);
   const [viqs, setViqs] = useState<Record<string, Viq>>({});
   const [documentResults, setDocumentResults] = useState<Record<string, DocumentConsistencyResponse>>({});
+  const [staffActions, setStaffActions] = useState<StaffAction[]>([]);
+  const [exercises, setExercises] = useState<VerificationExercise[]>([]);
+  const [exerciseSubmissions, setExerciseSubmissions] = useState<ExerciseSubmission[]>([]);
+  const [adminSummary, setAdminSummary] = useState<AdminSummary | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [biasAudit, setBiasAudit] = useState<BiasAuditResponse | null>(null);
   const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
@@ -168,12 +176,21 @@ export function DashboardPage() {
   useEffect(() => {
     if (autoSeedStarted.current || workers.length > 0) return;
     autoSeedStarted.current = true;
-    void importNominalRoll({ navigate: false });
+    void loadInitialBatch();
   }, []);
 
   useEffect(() => {
     setPage(1);
   }, [filter, query, activePage]);
+
+  useEffect(() => {
+    const currentExercise = exercises[0];
+    if (!currentExercise) return;
+    setExerciseName(currentExercise.name);
+    setExerciseScope(currentExercise.scope);
+    setSelectedExerciseRules(new Set(currentExercise.rules as ExerciseRule[]));
+    setSelectedDocuments(new Set(currentExercise.documents));
+  }, [exercises]);
 
   async function runAction<T>(name: string, action: () => Promise<T>) {
     setLoading(name);
@@ -195,6 +212,10 @@ export function DashboardPage() {
     setAnomalyScan(null);
     setViqs({});
     setDocumentResults({});
+    setStaffActions([]);
+    setExercises([]);
+    setExerciseSubmissions([]);
+    setAdminSummary(null);
     setDisbursedIds(new Set());
     setInvestigationIds(new Set());
     setPayrollStage("IMPORTED");
@@ -202,10 +223,63 @@ export function DashboardPage() {
     if (listedWorkers) {
       setWorkers(listedWorkers);
       setSelectedWorker(null);
+      await hydrateBackendState(result.ministry, result.pay_cycle_id, { skipWorkers: true });
       if (options.navigate ?? true) {
         setActivePage("staff");
       }
     }
+  }
+
+  async function loadInitialBatch() {
+    const cycles = await runAction("pay-cycles", latticeApi.listPayCycles);
+    const existing = cycles?.find((cycle) =>
+      cycle.ministry.startsWith("Ogun State Ministry of Education Demo"),
+    );
+    if (existing) {
+      const batch = {
+        pay_cycle_id: existing.id,
+        ministry: existing.ministry,
+        workers_inserted: 0,
+        injected_ghost_workers: 0,
+      };
+      setSeed(batch);
+      setPayrollStage("IMPORTED");
+      await hydrateBackendState(existing.ministry, existing.id);
+      return;
+    }
+    await importNominalRoll({ navigate: false });
+  }
+
+  async function hydrateBackendState(
+    ministry: string,
+    payCycleId: string,
+    options: { skipWorkers?: boolean } = {},
+  ) {
+    const [listedWorkers, listedViqs, listedActions, listedExercises, summary] = await Promise.all([
+      options.skipWorkers ? Promise.resolve(null) : latticeApi.listWorkers(ministry),
+      latticeApi.listViqs(payCycleId),
+      latticeApi.listStaffActions(ministry, payCycleId),
+      latticeApi.listVerificationExercises(ministry),
+      latticeApi.adminSummary({ ministry, pay_cycle_id: payCycleId }),
+    ]);
+    if (listedWorkers) {
+      setWorkers(listedWorkers);
+    }
+    setViqs(Object.fromEntries(listedViqs.map((viq) => [viq.worker_id, viq])));
+    applyStaffActions(listedActions);
+    setExercises(listedExercises);
+    setAdminSummary(summary);
+    if (listedExercises[0]) {
+      const submissions = await latticeApi.listExerciseSubmissions(listedExercises[0].id);
+      setExerciseSubmissions(submissions);
+    }
+  }
+
+  function applyStaffActions(actions: StaffAction[]) {
+    setStaffActions(actions);
+    setDisbursedIds(new Set(actions.filter((item) => item.action_type === "APPROVE_PAYMENT").map((item) => item.worker_id)));
+    setInvestigationIds(new Set(actions.filter((item) => item.action_type === "FLAG_INVESTIGATION").map((item) => item.worker_id)));
+    setDocumentResults(documentResultsFromActions(actions));
   }
 
   async function runLatticeGate() {
@@ -226,12 +300,20 @@ export function DashboardPage() {
         ...evidence,
         documents: documentEvidence(documents),
       });
-      return { documents, viqResult };
+      const documentAction = await latticeApi.recordDocumentCheck({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        viq_id: viqResult.viq.id,
+        payload: documents,
+      });
+      return { documents, viqResult, documentAction };
     });
     if (result) {
       setDocumentResults((current) => ({ ...current, [worker.id]: result.documents }));
       setViqs((current) => ({ ...current, [worker.id]: result.viqResult.viq }));
+      setStaffActions((current) => [result.documentAction, ...current]);
       setSelectedWorker(worker);
+      void hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
     }
   }
 
@@ -277,33 +359,105 @@ export function DashboardPage() {
     if (result) setBiasAudit(result);
   }
 
-  function disburseEligible() {
-    const eligibleIds = workers
-      .filter((worker) => {
-        const viq = viqs[worker.id];
-        const anomaly = anomalyByCode.get(worker.worker_code);
-        return !investigationIds.has(worker.id) && !anomaly?.flagged && viq?.verdict === "PASS";
-      })
-      .map((worker) => worker.id);
-    setDisbursedIds(new Set(eligibleIds));
-    setPayrollStage("DISBURSED");
+  async function disburseEligible() {
+    if (!seed) return;
+    const result = await runAction("release", () =>
+      latticeApi.releaseEligible({ pay_cycle_id: seed.pay_cycle_id }),
+    );
+    if (result) {
+      setStaffActions((current) => [...result.released, ...current]);
+      setDisbursedIds((current) => {
+        const next = new Set(current);
+        result.released.forEach((item) => next.add(item.worker_id));
+        return next;
+      });
+      setPayrollStage("DISBURSED");
+      await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
+    }
   }
 
-  function approveWorker(worker: Worker) {
+  async function approveWorker(worker: Worker) {
+    if (!seed) return;
     const viq = viqs[worker.id];
     const anomaly = anomalyByCode.get(worker.worker_code);
     if (viq?.verdict !== "PASS" || anomaly?.flagged || investigationIds.has(worker.id)) return;
-    setDisbursedIds((current) => new Set(current).add(worker.id));
-    setPayrollStage("DISBURSED");
+    const action = await runAction(`approve-${worker.id}`, () =>
+      latticeApi.approvePayment({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        viq_id: viq.id,
+      }),
+    );
+    if (action) {
+      setStaffActions((current) => [action, ...current]);
+      setDisbursedIds((current) => new Set(current).add(worker.id));
+      setPayrollStage("DISBURSED");
+      await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
+    }
   }
 
-  function flagWorker(worker: Worker) {
-    setInvestigationIds((current) => new Set(current).add(worker.id));
-    setDisbursedIds((current) => {
-      const next = new Set(current);
-      next.delete(worker.id);
-      return next;
+  async function flagWorker(worker: Worker) {
+    if (!seed) return;
+    const action = await runAction(`flag-${worker.id}`, () =>
+      latticeApi.flagInvestigation({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        viq_id: viqs[worker.id]?.id,
+      }),
+    );
+    if (action) {
+      setStaffActions((current) => [action, ...current]);
+      setInvestigationIds((current) => new Set(current).add(worker.id));
+      setDisbursedIds((current) => {
+        const next = new Set(current);
+        next.delete(worker.id);
+        return next;
+      });
+      await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
+    }
+  }
+
+  async function saveExercise() {
+    if (!seed) return;
+    const payload = {
+      ministry: seed.ministry,
+      name: exerciseName,
+      scope: exerciseScope,
+      rules: Array.from(selectedExerciseRules),
+      documents: Array.from(selectedDocuments),
+    };
+    const existing = exercises[0];
+    const exercise = await runAction("exercise-save", () =>
+      existing
+        ? latticeApi.updateVerificationExercise(existing.id, payload)
+        : latticeApi.createVerificationExercise(payload),
+    );
+    if (exercise) {
+      setExercises((current) => [exercise, ...current.filter((item) => item.id !== exercise.id)]);
+      const submissions = await latticeApi.listExerciseSubmissions(exercise.id);
+      setExerciseSubmissions(submissions);
+    }
+  }
+
+  async function publishExercise() {
+    if (!seed) return;
+    const payload = {
+      ministry: seed.ministry,
+      name: exerciseName,
+      scope: exerciseScope,
+      rules: Array.from(selectedExerciseRules),
+      documents: Array.from(selectedDocuments),
+    };
+    const saved = await runAction("exercise-publish", async () => {
+      const existing = exercises[0];
+      const draft = existing
+        ? await latticeApi.updateVerificationExercise(existing.id, payload)
+        : await latticeApi.createVerificationExercise(payload);
+      return latticeApi.publishVerificationExercise(draft.id);
     });
+    if (saved) {
+      setExercises((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+    }
   }
 
   function toggleExerciseRule(rule: ExerciseRule) {
@@ -411,21 +565,31 @@ export function DashboardPage() {
         {activePage === "exercises" ? (
           <ExercisesView
             biasAudit={biasAudit}
+            exercises={exercises}
             exerciseName={exerciseName}
             exerciseScope={exerciseScope}
             loading={loading === "bias"}
+            publishLoading={loading === "exercise-publish"}
+            saveLoading={loading === "exercise-save"}
             selectedDocuments={selectedDocuments}
             selectedRules={selectedExerciseRules}
             onBiasAudit={runBiasAudit}
             onDocumentToggle={toggleExerciseDocument}
             onNameChange={setExerciseName}
+            onPublish={publishExercise}
             onRuleToggle={toggleExerciseRule}
+            onSave={saveExercise}
             onScopeChange={setExerciseScope}
           />
         ) : null}
 
         {activePage === "submissions" ? (
-          <SubmissionsView workers={workers} viqs={viqs} documentResults={documentResults} />
+          <SubmissionsView
+            documentResults={documentResults}
+            exerciseSubmissions={exerciseSubmissions}
+            workers={workers}
+            viqs={viqs}
+          />
         ) : null}
 
         {activePage === "disbursements" ? (
@@ -442,7 +606,12 @@ export function DashboardPage() {
         ) : null}
 
         {activePage === "reports" ? (
-          <ReportsView workers={workers} held={held} netEligible={netEligible} />
+          <ReportsView
+            adminSummary={adminSummary}
+            workers={workers}
+            held={held}
+            netEligible={netEligible}
+          />
         ) : null}
 
         {activePage === "settings" ? <SettingsView /> : null}
@@ -691,36 +860,47 @@ function PayrollView(props: {
 
 function ExercisesView({
   biasAudit,
+  exercises,
   exerciseName,
   exerciseScope,
   loading,
+  publishLoading,
+  saveLoading,
   selectedDocuments,
   selectedRules,
   onBiasAudit,
   onDocumentToggle,
   onNameChange,
+  onPublish,
   onRuleToggle,
+  onSave,
   onScopeChange,
 }: {
   biasAudit: BiasAuditResponse | null;
+  exercises: VerificationExercise[];
   exerciseName: string;
   exerciseScope: string;
   loading: boolean;
+  publishLoading: boolean;
+  saveLoading: boolean;
   selectedDocuments: Set<string>;
   selectedRules: Set<ExerciseRule>;
   onBiasAudit: () => void;
   onDocumentToggle: (document: string) => void;
   onNameChange: (value: string) => void;
+  onPublish: () => void;
   onRuleToggle: (rule: ExerciseRule) => void;
+  onSave: () => void;
   onScopeChange: (value: string) => void;
 }) {
+  const currentExercise = exercises[0];
   return (
     <section className={styles.pageStack}>
       <div className={styles.exerciseGrid}>
         <Card className={styles.formCard}>
           <h2>Create verification exercise</h2>
           <p>
-            Configure the exercise HR wants to publish to staff. The setup is kept as a draft until publishing is connected.
+            Configure the exercise HR wants to publish to staff, then generate the worker link.
           </p>
           <label>
             Exercise name
@@ -737,8 +917,16 @@ function ExercisesView({
           </label>
           <div className={styles.generatedLink}>
             <span>Publish status</span>
-            <strong>Worker link not available yet</strong>
-            <p>Once connected, this action should create a signed exercise link for the ministry website.</p>
+            <strong>{currentExercise?.status ?? "Draft not saved"}</strong>
+            <p>{currentExercise?.public_url ?? "Save and publish to generate a worker-facing link."}</p>
+          </div>
+          <div className={styles.actions}>
+            <Button loading={saveLoading} onClick={onSave} variant="secondary">
+              Save Exercise
+            </Button>
+            <Button loading={publishLoading} onClick={onPublish}>
+              Publish Link
+            </Button>
           </div>
         </Card>
 
@@ -778,6 +966,23 @@ function ExercisesView({
       </Card>
 
       <Card className={styles.capabilityCard}>
+        <h2>Existing exercises</h2>
+        {exercises.length ? (
+          <DataTable
+            columns={["Exercise", "Scope", "Status", "Worker link"]}
+            rows={exercises.map((exercise) => [
+              exercise.name,
+              exercise.scope,
+              exercise.status,
+              exercise.public_url ?? "Not published",
+            ])}
+          />
+        ) : (
+          <p>No exercise has been saved yet.</p>
+        )}
+      </Card>
+
+      <Card className={styles.capabilityCard}>
         <h2>Fairness evidence</h2>
         <p>Runs the available backend liveness fairness audit endpoint.</p>
         <Button loading={loading} onClick={onBiasAudit} variant="secondary">Run Bias Audit</Button>
@@ -788,14 +993,30 @@ function ExercisesView({
 }
 
 function SubmissionsView({
+  exerciseSubmissions,
   workers,
   viqs,
   documentResults,
 }: {
+  exerciseSubmissions: ExerciseSubmission[];
   workers: Worker[];
   viqs: Record<string, Viq>;
   documentResults: Record<string, DocumentConsistencyResponse>;
 }) {
+  if (exerciseSubmissions.length) {
+    return (
+      <DataTable
+        columns={["Staff", "Documents", "Liveness", "Decision"]}
+        rows={exerciseSubmissions.map((submission) => [
+          `${submission.worker_code ?? "Unmatched"} - ${submission.full_name}`,
+          humanizeStatus(submission.document_status ?? "NOT_CHECKED"),
+          humanizeStatus(submission.liveness_status ?? "NOT_CHECKED"),
+          submission.decision,
+        ])}
+      />
+    );
+  }
+
   const submittedWorkers = workers.filter((worker) => viqs[worker.id] || documentResults[worker.id]);
   if (!submittedWorkers.length) {
     return (
@@ -879,11 +1100,41 @@ function DocumentsView({
   );
 }
 
-function ReportsView({ workers, held, netEligible }: { workers: Worker[]; held: number; netEligible: number }) {
+function ReportsView({
+  adminSummary,
+  workers,
+  held,
+  netEligible,
+}: {
+  adminSummary: AdminSummary | null;
+  workers: Worker[];
+  held: number;
+  netEligible: number;
+}) {
+  if (adminSummary) {
+    return (
+      <DataTable
+        columns={["Metric", "Value"]}
+        rows={[
+          ["Workers", String(adminSummary.workers)],
+          ["VIQs generated", String(adminSummary.viqs)],
+          ["Passed", String(adminSummary.pass_count)],
+          ["Under review", String(adminSummary.review_count)],
+          ["Failed", String(adminSummary.fail_count)],
+          ["Approved releases", String(adminSummary.approved_count)],
+          ["Flagged investigations", String(adminSummary.flagged_count)],
+          ["Gross payroll", formatMoney(Number(adminSummary.gross_payroll))],
+          ["Eligible payroll", formatMoney(Number(adminSummary.eligible_payroll))],
+          ["Held payroll", formatMoney(Number(adminSummary.held_payroll))],
+        ]}
+      />
+    );
+  }
+
   return (
     <EmptyState
-      title="Reports are not connected yet"
-      body={`Current loaded state: ${workers.length} staff records, ${held} held, ${formatMoney(netEligible)} eligible. Report export will appear here after a reports endpoint is connected.`}
+      title="Reports loading"
+      body={`Current loaded state: ${workers.length} staff records, ${held} held, ${formatMoney(netEligible)} eligible.`}
     />
   );
 }
@@ -1043,6 +1294,29 @@ function documentEvidence(documents: DocumentConsistencyResponse) {
     flags: documents.flags,
     summary: documents.summary,
   };
+}
+
+function documentResultsFromActions(actions: StaffAction[]) {
+  const results: Record<string, DocumentConsistencyResponse> = {};
+  const ordered = [...actions].reverse();
+  for (const action of ordered) {
+    if (action.action_type !== "DOCUMENT_CHECK") continue;
+    const payload = action.payload;
+    if (
+      payload.status === "DOCUMENTS_CLEAN" ||
+      payload.status === "DOCUMENT_INCONSISTENCY"
+    ) {
+      results[action.worker_id] = {
+        status: payload.status,
+        severity: payload.severity === "NONE" || payload.severity === "LOW" || payload.severity === "MEDIUM" || payload.severity === "HIGH"
+          ? payload.severity
+          : "NONE",
+        flags: Array.isArray(payload.flags) ? payload.flags as DocumentConsistencyResponse["flags"] : [],
+        summary: typeof payload.summary === "string" ? payload.summary : "",
+      };
+    }
+  }
+  return results;
 }
 
 function objectValue(value: unknown): Record<string, Record<string, unknown>> | null {

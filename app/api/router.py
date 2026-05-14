@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.api.routes import (
+    admin,
     bias_audit,
     deepfake,
     demo,
@@ -20,6 +21,7 @@ from app.api.routes import (
 )
 
 api_router = APIRouter()
+api_router.include_router(admin.router)
 api_router.include_router(bias_audit.router)
 api_router.include_router(deepfake.router)
 api_router.include_router(demo.router)

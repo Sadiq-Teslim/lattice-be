@@ -160,6 +160,69 @@ class AuditLog(Base):
     pay_cycle: Mapped[PayCycle | None] = relationship(back_populates="audit_logs")
 
 
+class StaffAction(Base):
+    __tablename__ = "staff_actions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    worker_id: Mapped[str] = mapped_column(ForeignKey("workers.id"), index=True)
+    pay_cycle_id: Mapped[str | None] = mapped_column(
+        ForeignKey("pay_cycles.id"),
+        nullable=True,
+        index=True,
+    )
+    viq_id: Mapped[str | None] = mapped_column(ForeignKey("viqs.id"), nullable=True, index=True)
+    action_type: Mapped[str] = mapped_column(String(64), index=True)
+    status: Mapped[str] = mapped_column(String(32), index=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    actor: Mapped[str] = mapped_column(String(128), default="HR Payroll Desk")
+    payload: Mapped[dict] = mapped_column(json_type, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
+class VerificationExercise(Base):
+    __tablename__ = "verification_exercises"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    ministry: Mapped[str] = mapped_column(String(255), index=True)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    scope: Mapped[str] = mapped_column(String(255))
+    rules: Mapped[list] = mapped_column(json_type, default=list)
+    documents: Mapped[list] = mapped_column(json_type, default=list)
+    status: Mapped[str] = mapped_column(String(32), default="DRAFT", index=True)
+    public_token: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True)
+    public_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+
+class ExerciseSubmission(Base):
+    __tablename__ = "exercise_submissions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    exercise_id: Mapped[str] = mapped_column(
+        ForeignKey("verification_exercises.id"),
+        index=True,
+    )
+    worker_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workers.id"),
+        nullable=True,
+        index=True,
+    )
+    worker_code: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    full_name: Mapped[str] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(32), default="SUBMITTED", index=True)
+    decision: Mapped[str] = mapped_column(String(32), default="REVIEW", index=True)
+    document_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    liveness_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    payload: Mapped[dict] = mapped_column(json_type, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class OtpChallenge(Base):
     __tablename__ = "otp_challenges"
 
