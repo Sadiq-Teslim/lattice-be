@@ -1,19 +1,19 @@
 :root {
-  --color-bg: #f7f8fa;
+  --color-bg: #f7f7f7;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-brand: #1b4fd8;
-  --color-brand-dark: #1741b0;
-  --color-text-primary: #0f172a;
-  --color-text-secondary: #475569;
-  --color-text-disabled: #94a3b8;
+  --color-border: #e5e7eb;
+  --color-brand: #e8001c;
+  --color-brand-dark: #b80016;
+  --color-text-primary: #0d0d0d;
+  --color-text-secondary: #6b7280;
+  --color-text-disabled: #9ca3af;
   --color-success: #16a34a;
   --color-success-bg: #f0fdf4;
   --color-warning: #d97706;
   --color-warning-bg: #fef3c7;
   --color-danger: #dc2626;
   --color-danger-bg: #fee2e2;
-  --color-neutral: #1b4fd8;
+  --color-neutral: #e8001c;
   --radius-card: 12px;
   --radius-button: 8px;
   --radius-pill: 999px;

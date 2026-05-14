@@ -74,7 +74,7 @@
   max-height: 260px;
   overflow: auto;
   border-radius: var(--radius-button);
-  background: #0f172a;
+  background: #0d0d0d;
   color: white;
   font-size: 14px;
   padding: var(--space-md);
