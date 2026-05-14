@@ -523,17 +523,19 @@ export function DashboardPage() {
             if (value.trim()) setActivePage("staff");
           }}
         />
-        <PageHeader
-          activePage={activePage}
-          batchStatus={batchStatus}
-          onImport={importNominalRoll}
-          onRunGate={runLatticeGate}
-          onDisburse={disburseEligible}
-          importLoading={loading === "seed" || loading === "workers"}
-          gateLoading={loading === "anomaly"}
-          canRunGate={Boolean(seed) && workers.length > 0}
-          canDisburse={cleared > 0 && payrollStage === "LATTICE_READY"}
-        />
+        {["dashboard", "staff", "payroll"].includes(activePage) ? (
+          <PageHeader
+            activePage={activePage}
+            batchStatus={batchStatus}
+            onImport={importNominalRoll}
+            onRunGate={runLatticeGate}
+            onDisburse={disburseEligible}
+            importLoading={loading === "seed" || loading === "workers"}
+            gateLoading={loading === "anomaly"}
+            canRunGate={Boolean(seed) && workers.length > 0}
+            canDisburse={cleared > 0 && payrollStage === "LATTICE_READY"}
+          />
+        ) : null}
 
         {error ? <div className={styles.error}>{error}</div> : null}
 
