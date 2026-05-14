@@ -3,6 +3,7 @@ import type {
   AnomalyScanResponse,
   BiasAuditResponse,
   DemoSeedResponse,
+  DocumentConsistencyResponse,
   JobResponse,
   LivenessEvaluationResponse,
   VerificationFinalizeResponse,
@@ -62,6 +63,44 @@ export const latticeApi = {
 
   scanAnomalies: (payCycleId: string) =>
     request<AnomalyScanResponse>(`/demo/anomalies?pay_cycle_id=${encodeURIComponent(payCycleId)}`),
+
+  evaluateDocumentConsistency: (worker: Worker, overrides: Partial<{
+    payroll_dob: string;
+    bvn_dob: string;
+    file_dob: string;
+    appointment_date: string;
+    first_salary_date: string;
+    confirmation_date: string;
+    last_promotion_date: string;
+    retirement_date: string;
+    required_documents: string[];
+    submitted_documents: string[];
+  }> = {}) =>
+    request<DocumentConsistencyResponse>("/ai/document-consistency/evaluate", {
+      method: "POST",
+      body: JSON.stringify({
+        worker_record: {
+          worker_id: worker.worker_code,
+          full_name: worker.full_name,
+          payroll_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
+          bvn_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
+          file_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
+          appointment_date: "2014-09-15",
+          first_salary_date: "2014-10-25",
+          confirmation_date: "2016-09-15",
+          last_promotion_date: "2023-01-01",
+          retirement_date: "2046-03-14",
+          document_numbers: {
+            appointment_letter: `OG-MOE-${worker.worker_code.slice(-5)}`,
+            bvn: worker.bvn,
+          },
+          required_documents: ["appointment_letter", "birth_certificate", "promotion_letter"],
+          submitted_documents: ["appointment_letter", "birth_certificate", "promotion_letter"],
+          ...overrides,
+        },
+        cohort_records: [],
+      }),
+    }),
 
   evaluateLiveness: (payload: {
     challenge: string;
@@ -156,3 +195,10 @@ export const latticeApi = {
       body: JSON.stringify({ live_cases_per_group: 40, spoof_cases_per_group: 40, seed: 42 }),
     }),
 };
+
+function isoDate(value?: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString().slice(0, 10);
+}

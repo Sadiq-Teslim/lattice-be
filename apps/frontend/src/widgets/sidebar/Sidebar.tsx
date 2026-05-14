@@ -1,10 +1,12 @@
-import { AlertTriangle, FileText, LayoutDashboard, Shield, Users } from "lucide-react";
+import { AlertTriangle, Banknote, FileText, LayoutDashboard, ShieldCheck, Users } from "lucide-react";
 import styles from "./Sidebar.module.css";
 
 const items = [
-  { label: "Overview", icon: LayoutDashboard, active: true },
-  { label: "Workers", icon: Users },
-  { label: "Anomaly Detection", icon: AlertTriangle },
+  { label: "Payroll Run", icon: LayoutDashboard, active: true },
+  { label: "Nominal Roll", icon: Users },
+  { label: "Lattice Gate", icon: ShieldCheck },
+  { label: "Exceptions", icon: AlertTriangle },
+  { label: "Disbursement", icon: Banknote },
   { label: "Audit Log", icon: FileText },
 ];
 
@@ -12,8 +14,8 @@ export function Sidebar() {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logo}>
-        <Shield size={28} strokeWidth={1.5} />
-        <span>Lattice</span>
+        <div className={styles.seal}>OG</div>
+        <span>Ogun Payroll</span>
       </div>
       <nav className={styles.nav}>
         {items.map((item) => {

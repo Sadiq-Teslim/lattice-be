@@ -19,6 +19,25 @@
   gap: var(--space-lg);
 }
 
+.titleBlock {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.seal {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 2px solid var(--color-brand);
+  border-radius: 50%;
+  color: var(--color-brand);
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
 .header p {
   margin: 0;
   color: var(--color-text-secondary);
@@ -29,6 +48,12 @@
 .header h1 {
   margin: 0;
   font-size: 22px;
+}
+
+.titleBlock span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .actions,
@@ -51,8 +76,64 @@
 
 .controlGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1.2fr 1fr 1fr;
   gap: var(--space-md);
+}
+
+.commandStrip {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  gap: var(--space-md);
+}
+
+.batchCard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+.batchCard div {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.batchCard span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.batchCard strong {
+  font-size: 18px;
+}
+
+.latticeGate {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+}
+
+.gateIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border-radius: var(--radius-button);
+  background: var(--color-danger-bg);
+  color: var(--color-brand);
+}
+
+.latticeGate h2 {
+  margin: 0 0 var(--space-xs);
+  font-size: 18px;
+}
+
+.latticeGate p {
+  margin: 0;
+  color: var(--color-text-secondary);
 }
 
 .panel {
@@ -69,6 +150,19 @@
 .panel p {
   margin: 0;
   color: var(--color-text-secondary);
+}
+
+.rules {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.rules span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-weight: 700;
 }
 
 .meta {
@@ -136,7 +230,9 @@
   }
 
   .actions,
-  .controlGrid {
+  .controlGrid,
+  .commandStrip,
+  .batchCard {
     display: grid;
     grid-template-columns: 1fr;
   }

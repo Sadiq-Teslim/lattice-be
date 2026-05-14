@@ -8,7 +8,7 @@
 
 .table {
   width: 100%;
-  min-width: 980px;
+  min-width: 1180px;
   border-collapse: collapse;
 }
 
@@ -46,13 +46,31 @@
 
 .flags {
   display: flex;
-  max-width: 280px;
+  max-width: 240px;
   flex-wrap: wrap;
   gap: var(--space-xs);
 }
 
 .payment {
+  color: var(--color-text-secondary);
+  font-size: 14px;
   font-weight: 700;
+}
+
+.primaryCell,
+.decision {
+  display: grid;
+  gap: 4px;
+}
+
+.primaryCell strong {
+  font-weight: 800;
+}
+
+.primaryCell span,
+.primaryCell small {
+  color: var(--color-text-secondary);
+  font-size: 14px;
 }
 
 .empty {

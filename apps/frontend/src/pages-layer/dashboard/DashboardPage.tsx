@@ -1,7 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Play, RefreshCw, Search, Shield } from "lucide-react";
+import {
+  Banknote,
+  CheckCircle,
+  FileSpreadsheet,
+  LockKeyhole,
+  RefreshCw,
+  Search,
+  Shield,
+} from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
 import type {
   AnomalyResult,
@@ -20,6 +28,7 @@ import { WorkerTable } from "@/widgets/worker-table/WorkerTable";
 import styles from "./DashboardPage.module.css";
 
 type Filter = "ALL" | "PASS" | "REVIEW" | "FAIL";
+type PayrollStage = "EMPTY" | "IMPORTED" | "LATTICE_READY" | "DISBURSED";
 
 export function DashboardPage() {
   const [seed, setSeed] = useState<DemoSeedResponse | null>(null);
@@ -29,6 +38,8 @@ export function DashboardPage() {
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [biasAudit, setBiasAudit] = useState<BiasAuditResponse | null>(null);
   const [lastJob, setLastJob] = useState<JobResponse | null>(null);
+  const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
+  const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>("ALL");
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState<string | null>(null);
@@ -49,11 +60,28 @@ export function DashboardPage() {
     return matchesFilter && text.includes(query.toLowerCase());
   });
 
-  const verified = Object.values(viqs).filter((viq) => viq.verdict === "PASS").length;
   const blocked = Object.values(viqs).filter((viq) => viq.verdict === "FAIL").length;
   const review =
     workers.filter((worker) => anomalyByCode.get(worker.worker_code)?.flagged).length +
     Object.values(viqs).filter((viq) => viq.verdict === "REVIEW").length;
+  const held = review + blocked;
+  const cleared = workers.length ? Math.max(0, workers.length - held) : 0;
+  const grossPayroll = workers.reduce((sum, worker) => sum + Number(worker.salary_amount || 0), 0);
+  const heldPayroll = workers.reduce((sum, worker) => {
+    const viq = viqs[worker.id];
+    const anomaly = anomalyByCode.get(worker.worker_code);
+    const shouldHold = viq?.verdict === "REVIEW" || viq?.verdict === "FAIL" || anomaly?.flagged;
+    return shouldHold ? sum + Number(worker.salary_amount || 0) : sum;
+  }, 0);
+  const netEligible = Math.max(0, grossPayroll - heldPayroll);
+  const batchStatus =
+    payrollStage === "DISBURSED"
+      ? "Eligible salaries released"
+      : payrollStage === "LATTICE_READY"
+        ? "Lattice gate completed"
+        : payrollStage === "IMPORTED"
+          ? "Nominal roll imported"
+          : "Awaiting nominal roll";
 
   async function runAction<T>(name: string, action: () => Promise<T>) {
     setLoading(name);
@@ -78,6 +106,8 @@ export function DashboardPage() {
     setSeed(result);
     setAnomalyScan(null);
     setViqs({});
+    setDisbursedIds(new Set());
+    setPayrollStage("IMPORTED");
     const listedWorkers = await runAction("workers", () => latticeApi.listWorkers(result.ministry));
     if (listedWorkers) {
       setWorkers(listedWorkers);
@@ -88,7 +118,10 @@ export function DashboardPage() {
   async function scanAnomalies() {
     if (!seed) return;
     const result = await runAction("anomaly", () => latticeApi.scanAnomalies(seed.pay_cycle_id));
-    if (result) setAnomalyScan(result);
+    if (result) {
+      setAnomalyScan(result);
+      setPayrollStage("LATTICE_READY");
+    }
   }
 
   async function verifyWorker(worker: Worker) {
@@ -130,6 +163,18 @@ export function DashboardPage() {
     if (result) setBiasAudit(result);
   }
 
+  function disburseEligible() {
+    const eligibleIds = workers
+      .filter((worker) => {
+        const viq = viqs[worker.id];
+        const anomaly = anomalyByCode.get(worker.worker_code);
+        return !anomaly?.flagged && viq?.verdict !== "FAIL" && viq?.verdict !== "REVIEW";
+      })
+      .map((worker) => worker.id);
+    setDisbursedIds(new Set(eligibleIds));
+    setPayrollStage("DISBURSED");
+  }
+
   const selectedAnomaly = selectedWorker
     ? anomalyByCode.get(selectedWorker.worker_code)
     : undefined;
@@ -140,9 +185,13 @@ export function DashboardPage() {
       <Sidebar />
       <main className={styles.main}>
         <header className={styles.header}>
-          <div>
-            <p>Ogun State Ministry of Education</p>
-            <h1>Pay Cycle - May 2026</h1>
+          <div className={styles.titleBlock}>
+            <div className={styles.seal}>OG</div>
+            <div>
+              <p>Ogun State Ministry of Education</p>
+              <h1>May 2026 Payroll Command Centre</h1>
+              <span>{batchStatus}</span>
+            </div>
           </div>
           <div className={styles.actions}>
             <Button
@@ -150,30 +199,73 @@ export function DashboardPage() {
               onClick={seedPayroll}
               variant="secondary"
             >
-              <RefreshCw size={18} strokeWidth={1.5} />
-              Seed Payroll
+              <FileSpreadsheet size={18} strokeWidth={1.5} />
+              Import Nominal Roll
             </Button>
             <Button disabled={!seed} loading={loading === "anomaly"} onClick={scanAnomalies}>
-              <Play size={18} strokeWidth={1.5} />
-              Run Anomaly Scan
+              <Shield size={18} strokeWidth={1.5} />
+              Run Lattice Gate
+            </Button>
+            <Button
+              disabled={!workers.length || payrollStage !== "LATTICE_READY"}
+              onClick={disburseEligible}
+              variant="secondary"
+            >
+              <Banknote size={18} strokeWidth={1.5} />
+              Release Eligible
             </Button>
           </div>
         </header>
+
+        <section className={styles.commandStrip}>
+          <Card className={styles.batchCard}>
+            <div>
+              <span>Payroll Batch</span>
+              <strong>OG-MOE-MAY-2026</strong>
+            </div>
+            <div>
+              <span>Gross Payroll</span>
+              <strong>{formatMoney(grossPayroll)}</strong>
+            </div>
+            <div>
+              <span>Held by Lattice</span>
+              <strong>{formatMoney(heldPayroll)}</strong>
+            </div>
+            <div>
+              <span>Eligible Release</span>
+              <strong>{formatMoney(netEligible)}</strong>
+            </div>
+          </Card>
+
+          <Card className={styles.latticeGate}>
+            <div className={styles.gateIcon}>
+              <LockKeyhole size={24} strokeWidth={1.5} />
+            </div>
+            <div>
+              <h2>Lattice verification gate</h2>
+              <p>
+                Payroll can only release salaries after proof-of-life, document consistency,
+                BVN/name match, and anomaly screening produce a VIQ decision.
+              </p>
+            </div>
+          </Card>
+        </section>
 
         {error ? <div className={styles.error}>{error}</div> : null}
 
         <StatsGrid
           total={workers.length}
-          verified={verified}
-          review={review}
-          blocked={blocked}
+          completeRecords={workers.length ? workers.length - Math.min(held, workers.length) : 0}
+          latticeCleared={cleared}
+          held={held}
+          netPayable={formatMoney(netEligible)}
         />
 
         <section className={styles.controlGrid}>
           <Card className={styles.panel}>
-            <h2>Live SDK Controls</h2>
+            <h2>Verification orchestration</h2>
             <p>
-              Use the selected worker to generate a signed VIQ through the deployed Lattice API.
+              Select any worker to generate a signed VIQ through the deployed Lattice SDK endpoint.
             </p>
             <div className={styles.panelActions}>
               <Button
@@ -192,12 +284,12 @@ export function DashboardPage() {
                 Queue Verification
               </Button>
             </div>
-            {lastJob ? <p className={styles.meta}>Last job: {lastJob.status}</p> : null}
+            {lastJob ? <p className={styles.meta}>Last Lattice job: {lastJob.status}</p> : null}
           </Card>
 
           <Card className={styles.panel}>
-            <h2>Bias Audit</h2>
-            <p>Run deterministic Fitzpatrick IV-VI liveness audit metrics.</p>
+            <h2>Risk evidence</h2>
+            <p>Run fairness evidence and inspect exception drivers before approving the batch.</p>
             <Button loading={loading === "bias"} onClick={runBiasAudit} variant="secondary">
               <Shield size={18} strokeWidth={1.5} />
               Run Bias Audit
@@ -208,6 +300,15 @@ export function DashboardPage() {
                 {biasAudit.max_fnr_gap}
               </p>
             ) : null}
+          </Card>
+
+          <Card className={styles.panel}>
+            <h2>Payroll release rules</h2>
+            <div className={styles.rules}>
+              <span><CheckCircle size={18} strokeWidth={1.5} /> PASS workers are eligible.</span>
+              <span><RefreshCw size={18} strokeWidth={1.5} /> REVIEW workers stay held.</span>
+              <span><LockKeyhole size={18} strokeWidth={1.5} /> FAIL workers are blocked.</span>
+            </div>
           </Card>
         </section>
 
@@ -235,6 +336,7 @@ export function DashboardPage() {
           </div>
           <WorkerTable
             anomalies={anomalies}
+            disbursedIds={disbursedIds}
             selectedId={selectedWorker?.id}
             viqs={viqs}
             workers={filteredWorkers}
@@ -252,4 +354,12 @@ export function DashboardPage() {
       />
     </div>
   );
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(value) ? value : 0);
 }

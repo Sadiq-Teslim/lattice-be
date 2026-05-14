@@ -149,6 +149,31 @@
   gap: var(--space-sm);
 }
 
+.documentGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.documentGrid div {
+  display: grid;
+  gap: 2px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: #fff1f2;
+  padding: var(--space-md);
+}
+
+.documentGrid span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.documentGrid strong {
+  font-size: 15px;
+}
+
 .checks {
   display: grid;
   gap: var(--space-md);

@@ -4,6 +4,9 @@ export type Worker = {
   full_name: string;
   bvn: string;
   phone: string;
+  email: string;
+  date_of_birth: string;
+  gender: string;
   ministry: string;
   department: string | null;
   salary_amount: string;
@@ -68,6 +71,20 @@ export type Viq = {
   signature: string;
   squad_transaction_reference: string | null;
   payment_status: string;
+};
+
+export type DocumentConsistencyFlag = {
+  code: string;
+  severity: string;
+  message: string;
+  fields: string[];
+};
+
+export type DocumentConsistencyResponse = {
+  status: "DOCUMENTS_CLEAN" | "DOCUMENT_INCONSISTENCY";
+  severity: "NONE" | "LOW" | "MEDIUM" | "HIGH";
+  flags: DocumentConsistencyFlag[];
+  summary: string;
 };
 
 export type VerificationSession = {

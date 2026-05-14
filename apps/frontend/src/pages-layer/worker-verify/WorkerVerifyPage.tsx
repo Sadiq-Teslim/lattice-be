@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Camera, CheckCircle, FileCheck2, Shield, Smartphone, WifiOff } from "lucide-react";
+import { Camera, CheckCircle, FileCheck2, Shield, Smartphone, UploadCloud, WifiOff } from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
 import type {
+  DocumentConsistencyResponse,
   LivenessEvaluationResponse,
   VerificationSession,
   Viq,
@@ -12,9 +13,9 @@ import type {
 import { Button, Card, FlagPill, StepProgress, TrustScoreGauge } from "@/shared/ui";
 import styles from "./WorkerVerifyPage.module.css";
 
-type FlowStep = "loading" | "welcome" | "otp" | "liveness" | "processing" | "result";
+type FlowStep = "loading" | "welcome" | "otp" | "liveness" | "documents" | "processing" | "result";
 
-const steps = ["OTP", "Liveness", "Checks", "Done"];
+const steps = ["OTP", "Liveness", "Documents", "Done"];
 
 export function WorkerVerifyPage() {
   const [step, setStep] = useState<FlowStep>("loading");
@@ -24,12 +25,13 @@ export function WorkerVerifyPage() {
   const [blinkCount, setBlinkCount] = useState(0);
   const [turned, setTurned] = useState(false);
   const [liveness, setLiveness] = useState<LivenessEvaluationResponse | null>(null);
+  const [documents, setDocuments] = useState<DocumentConsistencyResponse | null>(null);
   const [viq, setViq] = useState<Viq | null>(null);
   const [processingIndex, setProcessingIndex] = useState(0);
   const [offline, setOffline] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const currentProgress = step === "otp" ? 0 : step === "liveness" ? 1 : step === "processing" ? 2 : step === "result" ? 4 : 0;
+  const currentProgress = step === "otp" ? 0 : step === "liveness" ? 1 : step === "documents" || step === "processing" ? 2 : step === "result" ? 4 : 0;
   const otpComplete = otp.every(Boolean);
   const workerAmount = useMemo(() => formatMoney(worker?.salary_amount), [worker]);
   const resultStatus = viq?.verdict === "PASS" ? "pass" : viq?.verdict === "FAIL" ? "fail" : "review";
@@ -97,13 +99,26 @@ export function WorkerVerifyPage() {
         setError("Liveness failed. Complete the blink and head-turn challenge.");
         return;
       }
+      setStep("documents");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Liveness check failed.");
+    }
+  }
+
+  async function runDocumentCheck() {
+    if (!session || !worker || !liveness) return;
+    setError(null);
+    try {
+      const documentResult = await latticeApi.evaluateDocumentConsistency(worker);
+      const capturedAt = new Date().toISOString();
+      setDocuments(documentResult);
       await latticeApi.submitVerificationEvidence(session.id, {
         liveness: {
           status: "PASSED",
-          confidence: evaluated.confidence,
-          attempts: evaluated.attempts,
-          challenge: evaluated.challenge,
-          captured_at: payload.captured_at,
+          confidence: liveness.confidence,
+          attempts: liveness.attempts,
+          challenge: liveness.challenge,
+          captured_at: capturedAt,
         },
         deepfake: {
           status: "CLEAN",
@@ -113,26 +128,26 @@ export function WorkerVerifyPage() {
         face_match: {
           status: "MATCH",
           similarity: 0.98,
-          captured_at: payload.captured_at,
+          captured_at: capturedAt,
         },
         bvn: {
           status: "BVN_MATCH",
           provider: "SQUAD",
           resolved_name: worker?.full_name,
           matched_name: worker?.full_name,
-          captured_at: payload.captured_at,
+          captured_at: capturedAt,
         },
         documents: {
-          status: "DOCUMENTS_CLEAN",
-          severity: "NONE",
-          flags: [],
-          summary: "Name, BVN, DOB, payroll record, and appointment record are consistent.",
+          status: documentResult.status,
+          severity: documentResult.severity,
+          flags: documentResult.flags,
+          summary: documentResult.summary,
         },
       });
       setStep("processing");
       void finalizeSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Liveness check failed.");
+      setError(err instanceof Error ? err.message : "Document verification failed.");
     }
   }
 
@@ -275,11 +290,39 @@ export function WorkerVerifyPage() {
           </Card>
         ) : null}
 
+        {step === "documents" && worker ? (
+          <Card className={styles.screen}>
+            <UploadCloud size={36} strokeWidth={1.5} />
+            <h1>Document consistency</h1>
+            <p>Confirm your personnel file so Lattice can compare dates and identity records.</p>
+            <div className={styles.documentGrid}>
+              <div>
+                <span>Date of birth</span>
+                <strong>{formatDisplayDate(worker.date_of_birth)}</strong>
+              </div>
+              <div>
+                <span>First appointment</span>
+                <strong>15 Sep 2014</strong>
+              </div>
+              <div>
+                <span>First salary</span>
+                <strong>25 Oct 2014</strong>
+              </div>
+              <div>
+                <span>Required documents</span>
+                <strong>3 of 3 uploaded</strong>
+              </div>
+            </div>
+            {documents ? <p className={styles.meta}>Documents: {documents.status}</p> : null}
+            <Button fullWidth onClick={runDocumentCheck}>Submit Documents</Button>
+          </Card>
+        ) : null}
+
         {step === "processing" ? (
           <Card className={styles.screen}>
             <h1>Verifying your identity</h1>
             <ul className={styles.checks}>
-              {["Liveness confirmed", "Identity verified", "Records checked", "Salary decision generated"].map(
+              {["Liveness confirmed", "Documents checked", "Payroll record matched", "Salary decision generated"].map(
                 (item, index) => (
                   <li className={index <= processingIndex ? styles.done : ""} key={item}>
                     <CheckCircle size={20} strokeWidth={1.5} />
@@ -307,4 +350,11 @@ function formatMoney(value?: string) {
     currency: "NGN",
     maximumFractionDigits: 0,
   }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatDisplayDate(value?: string) {
+  if (!value) return "Not supplied";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
 }
