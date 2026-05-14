@@ -2,7 +2,17 @@
 
 ## Current State
 
-The repository started from scratch. Initial backend and AI foundation now exists.
+The repository started from scratch. Backend, SDK, AI, and the Ogun HR console now exist.
+
+Latest update, 2026-05-14:
+
+- BVN verification is not implemented as a standalone Squad BVN lookup. The documented path in this repo is Squad B2C virtual-account creation, which validates BVN against supplied identity fields.
+- `/api/v1/sdk/verify-and-disburse` now attempts that Squad virtual-account identity validation automatically before VIQ finalization when BVN evidence is not already supplied.
+- The payroll UI no longer treats bank-account lookup as BVN proof. Account lookup remains financial-account evidence only.
+- Real Squad BVN validation requires complete worker identity fields: full name, BVN, phone, email, DOB, gender, address, and beneficiary bank account number.
+- Teslim's seeded staff record uses real BVN/bank details from local `.env`, but real BVN validation still needs `DEMO_TESLIM_DOB` set to the actual DOB. Do not invent this value.
+- Payroll verification does not use the live camera directly. Camera/liveness belongs to manual worker verification or verification-exercise submissions; payroll verification consumes already-captured/preverified evidence plus Squad/document/anomaly checks.
+- Local backend is on `http://127.0.0.1:8010`; Ogun HR console is on `http://127.0.0.1:3011/admin/ogun-education`; Lattice landing page is on port `3010`.
 
 Implemented so far:
 
