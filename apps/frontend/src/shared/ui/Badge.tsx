@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import { Badge as MantineBadge } from "@mantine/core";
 import styles from "./Badge.module.css";
 
 type BadgeVariant = "success" | "warning" | "danger" | "neutral";
@@ -10,10 +11,17 @@ type BadgeProps = {
 };
 
 export function Badge({ label, variant = "neutral", icon: Icon }: BadgeProps) {
+  const color = variant === "danger" ? "red" : variant === "warning" ? "yellow" : "green";
   return (
-    <span className={`${styles.badge} ${styles[variant]}`}>
-      {Icon ? <Icon aria-hidden size={16} strokeWidth={1.5} /> : null}
+    <MantineBadge
+      className={`${styles.badge} ${styles[variant]}`}
+      color={color}
+      leftSection={Icon ? <Icon aria-hidden size={14} strokeWidth={1.5} /> : null}
+      radius="xl"
+      size="lg"
+      variant="light"
+    >
       {label}
-    </span>
+    </MantineBadge>
   );
 }

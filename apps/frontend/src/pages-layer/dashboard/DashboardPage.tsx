@@ -15,7 +15,7 @@ import {
   Shield,
   Settings2,
 } from "lucide-react";
-import { Drawer } from "@mantine/core";
+import { Avatar, Drawer, Group, Paper, SegmentedControl, Select, Text, TextInput } from "@mantine/core";
 import { latticeApi } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
 import type {
@@ -684,23 +684,24 @@ export function DashboardPage() {
 
 function TopBar({ query, onQuery }: { query: string; onQuery: (value: string) => void }) {
   return (
-    <div className={styles.topbar}>
-      <label className={styles.searchBox}>
-        <Search size={20} strokeWidth={1.5} />
-        <input
-          placeholder="Search staff, payroll batch, document, or VIQ"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-        />
-      </label>
-      <div className={styles.operator}>
-        <img alt="Ogun State" src="/ogun-logo.png" />
+    <Paper className={styles.topbar} radius={18} shadow="xs" withBorder={false}>
+      <TextInput
+        className={styles.searchBox}
+        leftSection={<Search size={20} strokeWidth={1.5} />}
+        onChange={(event) => onQuery(event.currentTarget.value)}
+        placeholder="Search staff, payroll batch, document, or VIQ"
+        radius="xl"
+        size="md"
+        value={query}
+      />
+      <Group className={styles.operator} gap="sm" wrap="nowrap">
+        <Avatar alt="Ogun State" radius="xl" size={42} src="/ogun-logo.png" />
         <div>
-          <strong>HR Payroll Desk</strong>
-          <span>Ogun State Ministry of Education</span>
+          <Text fw={900} size="sm">HR Payroll Desk</Text>
+          <Text c="dimmed" size="sm">Ogun State Ministry of Education</Text>
         </div>
-      </div>
-    </div>
+      </Group>
+    </Paper>
   );
 }
 
@@ -726,7 +727,7 @@ function PageHeader({
   canDisburse: boolean;
 }) {
   return (
-    <header className={styles.header}>
+    <Paper className={styles.header} component="header" radius={18} shadow="xs" withBorder={false}>
       <div className={styles.titleBlock}>
         <img alt="Ogun State Government" src="/ogun-logo.png" />
         <div>
@@ -749,7 +750,7 @@ function PageHeader({
           Release Eligible
         </Button>
       </div>
-    </header>
+    </Paper>
   );
 }
 
@@ -1097,19 +1098,22 @@ function ExercisesView({
       >
         <div className={styles.exerciseDrawerBody}>
           <Card className={styles.formCard}>
-              <label>
-                Exercise name
-                <input value={exerciseName} onChange={(event) => onNameChange(event.target.value)} />
-              </label>
-              <label>
-                Staff scope
-                <select value={exerciseScope} onChange={(event) => onScopeChange(event.target.value)}>
-                  <option>All ministry staff</option>
-                  <option>Teaching staff only</option>
-                  <option>Non-teaching staff only</option>
-                  <option>Selected departments</option>
-                </select>
-              </label>
+              <TextInput
+                label="Exercise name"
+                onChange={(event) => onNameChange(event.currentTarget.value)}
+                radius={8}
+                size="md"
+                value={exerciseName}
+              />
+              <Select
+                allowDeselect={false}
+                data={["All ministry staff", "Teaching staff only", "Non-teaching staff only", "Selected departments"]}
+                label="Staff scope"
+                onChange={(value) => onScopeChange(value ?? "All ministry staff")}
+                radius={8}
+                size="md"
+                value={exerciseScope}
+              />
           </Card>
 
           <Card className={styles.formCard}>
@@ -1363,25 +1367,23 @@ function Toolbar({
 }) {
   return (
     <div className={styles.tableHeader}>
-      <div className={styles.tabs}>
-        {(["ALL", "PASS", "REVIEW", "FAIL"] as const).map((item) => (
-          <button
-            className={filter === item ? styles.activeTab : ""}
-            key={item}
-            onClick={() => onFilter(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
-      <label className={styles.search}>
-        <Search size={18} strokeWidth={1.5} />
-        <input
-          placeholder="Search staff record"
-          value={query}
-          onChange={(event) => onQuery(event.target.value)}
-        />
-      </label>
+      <SegmentedControl
+        color="green"
+        data={["ALL", "PASS", "REVIEW", "FAIL"]}
+        onChange={(value) => onFilter(value as Filter)}
+        radius="xl"
+        size="md"
+        value={filter}
+      />
+      <TextInput
+        className={styles.search}
+        leftSection={<Search size={18} strokeWidth={1.5} />}
+        onChange={(event) => onQuery(event.currentTarget.value)}
+        placeholder="Search staff record"
+        radius="xl"
+        size="md"
+        value={query}
+      />
     </div>
   );
 }

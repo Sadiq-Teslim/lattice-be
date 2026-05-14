@@ -1,17 +1,17 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Button as MantineButton } from "@mantine/core";
 import styles from "./Button.module.css";
 
 type ButtonVariant = "primary" | "secondary" | "destructive";
 type ButtonSize = "default" | "small";
 
-type ButtonProps = {
+type ButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "color"> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   fullWidth?: boolean;
   loading?: boolean;
-} & React.ButtonHTMLAttributes<HTMLButtonElement>;
+};
 
 export function Button({
   variant = "primary",
@@ -23,19 +23,19 @@ export function Button({
   className,
   ...props
 }: ButtonProps) {
-  const classes = [
-    styles.button,
-    styles[variant],
-    styles[size],
-    fullWidth ? styles.fullWidth : "",
-    className ?? "",
-  ]
-    .filter(Boolean)
-    .join(" ");
-
   return (
-    <button className={classes} disabled={disabled || loading} {...props}>
-      {loading ? <Loader2 aria-hidden className={styles.spinner} size={20} /> : children}
-    </button>
+    <MantineButton
+      className={`${styles.button} ${className ?? ""}`}
+      color={variant === "destructive" ? "red" : "green"}
+      disabled={disabled}
+      fullWidth={fullWidth}
+      loading={loading}
+      radius={8}
+      size={size === "small" ? "sm" : "md"}
+      variant={variant === "secondary" ? "outline" : "filled"}
+      {...props}
+    >
+      {children}
+    </MantineButton>
   );
 }

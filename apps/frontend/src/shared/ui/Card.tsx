@@ -1,15 +1,23 @@
+import { Card as MantineCard, type CardProps as MantineCardProps } from "@mantine/core";
 import styles from "./Card.module.css";
 
-type CardProps = {
+type CardProps = Omit<MantineCardProps, "children"> & {
   children: React.ReactNode;
   elevated?: boolean;
   className?: string;
 };
 
-export function Card({ children, elevated = false, className }: CardProps) {
+export function Card({ children, elevated = false, className, ...props }: CardProps) {
   return (
-    <section className={`${styles.card} ${elevated ? styles.elevated : ""} ${className ?? ""}`}>
+    <MantineCard
+      className={`${styles.card} ${elevated ? styles.elevated : ""} ${className ?? ""}`}
+      component="section"
+      radius={12}
+      shadow={elevated ? "md" : "xs"}
+      withBorder
+      {...props}
+    >
       {children}
-    </section>
+    </MantineCard>
   );
 }

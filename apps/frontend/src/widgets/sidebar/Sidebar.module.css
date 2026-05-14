@@ -2,22 +2,22 @@
   position: sticky;
   top: 0;
   display: grid;
-  width: 240px;
+  width: 264px;
   height: 100vh;
   grid-template-rows: auto 1fr auto;
   gap: var(--space-md);
   border-right: 1px solid var(--color-border);
   background: var(--color-surface);
   padding: var(--space-md);
+  transition: width 180ms ease;
+}
+
+.collapsed {
+  width: 88px;
 }
 
 .logo {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  color: var(--color-text-primary);
-  font-size: 18px;
-  font-weight: 700;
+  min-height: 48px;
 }
 
 .logo img {
@@ -26,46 +26,70 @@
   object-fit: contain;
 }
 
+.collapseButton {
+  color: var(--color-brand);
+}
+
 .nav {
-  display: grid;
   align-content: start;
-  gap: var(--space-sm);
+  overflow: hidden auto;
+  padding-right: 2px;
 }
 
-.navItem {
-  display: flex;
-  min-height: 40px;
-  align-items: center;
-  gap: var(--space-sm);
-  border: 0;
-  border-radius: var(--radius-button);
-  background: transparent;
+.navRoot {
+  min-height: 46px;
+  border-radius: 12px;
   color: var(--color-text-secondary);
-  padding: 0 var(--space-sm);
-  text-align: left;
-  cursor: pointer;
-  font-weight: 700;
-  font-size: 14px;
+  font-weight: 800;
 }
 
-.active {
+.navRoot:hover {
+  background: #ecfdf3;
+  color: var(--color-brand);
+}
+
+.navRoot[data-active] {
   background: var(--color-brand);
   color: white;
+}
+
+.navSection {
+  color: currentColor;
+}
+
+.navBody {
+  min-width: 0;
+}
+
+.navLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collapsed .navRoot {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.collapsed .navSection {
+  margin-inline: 0;
+}
+
+.tooltipTarget {
+  border-radius: 12px;
 }
 
 .ministry {
   display: grid;
   gap: 2px;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-}
-
-.ministry strong {
-  color: var(--color-text-primary);
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-md);
 }
 
 @media (max-width: 900px) {
-  .sidebar {
+  .sidebar,
+  .collapsed {
     position: sticky;
     z-index: 20;
     width: 100%;
@@ -77,6 +101,10 @@
     padding: var(--space-md);
   }
 
+  .logo {
+    justify-content: space-between;
+  }
+
   .nav {
     display: flex;
     overflow-x: auto;
@@ -84,28 +112,17 @@
     scrollbar-width: thin;
   }
 
-  .navItem {
+  .nav > * {
     flex: 0 0 auto;
-    white-space: nowrap;
+  }
+
+  .collapsed .navRoot,
+  .navRoot {
+    min-width: 48px;
+    padding-inline: 12px;
   }
 
   .ministry {
     display: none;
-  }
-}
-
-@media (max-width: 560px) {
-  .logo {
-    font-size: 18px;
-  }
-
-  .logo img {
-    width: 40px;
-    height: 40px;
-  }
-
-  .navItem {
-    min-height: 42px;
-    padding: 0 var(--space-sm);
   }
 }

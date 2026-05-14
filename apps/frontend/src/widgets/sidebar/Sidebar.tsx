@@ -1,3 +1,16 @@
+"use client";
+
+import { useState } from "react";
+import {
+  ActionIcon,
+  Box,
+  Burger,
+  Group,
+  NavLink,
+  Stack,
+  Text,
+  Tooltip,
+} from "@mantine/core";
 import {
   Banknote,
   ClipboardCheck,
@@ -39,31 +52,64 @@ type SidebarProps = {
 };
 
 export function Sidebar({ activePage, onNavigate }: SidebarProps) {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <aside className={styles.sidebar}>
-      <div className={styles.logo}>
-        <img alt="Ogun State Government" src="/ogun-logo.png" />
-        <span>Ogun Payroll</span>
-      </div>
-      <nav className={styles.nav}>
+    <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
+      <Group className={styles.logo} gap="sm" justify={collapsed ? "center" : "space-between"} wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
+          <img alt="Ogun State Government" src="/ogun-logo.png" />
+          {!collapsed ? <Text fw={900}>Ogun Payroll</Text> : null}
+        </Group>
+        <ActionIcon
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          className={styles.collapseButton}
+          onClick={() => setCollapsed((value) => !value)}
+          radius="md"
+          size="lg"
+          variant="subtle"
+        >
+          <Burger opened={!collapsed} size={18} />
+        </ActionIcon>
+      </Group>
+
+      <Stack className={styles.nav} gap={6}>
         {items.map((item) => {
           const Icon = item.icon;
-          return (
-            <button
-              className={`${styles.navItem} ${activePage === item.key ? styles.active : ""}`}
-              key={item.key}
+          const active = activePage === item.key;
+          const nav = (
+            <NavLink
+              active={active}
+              className={styles.navItem}
+              classNames={{
+                body: styles.navBody,
+                label: styles.navLabel,
+                root: styles.navRoot,
+                section: styles.navSection,
+              }}
+              color="green"
+              label={collapsed ? "" : item.label}
+              leftSection={<Icon size={20} strokeWidth={1.7} />}
               onClick={() => onNavigate(item.key)}
-            >
-              <Icon size={20} strokeWidth={1.5} />
-              <span>{item.label}</span>
-            </button>
+              variant="filled"
+            />
+          );
+          return collapsed ? (
+            <Tooltip key={item.key} label={item.label} openDelay={120} position="right" withArrow>
+              <Box className={styles.tooltipTarget}>{nav}</Box>
+            </Tooltip>
+          ) : (
+            <Box key={item.key}>{nav}</Box>
           );
         })}
-      </nav>
-      <div className={styles.ministry}>
-        <span>Ogun State</span>
-        <strong>Ministry of Education</strong>
-      </div>
+      </Stack>
+
+      {!collapsed ? (
+        <Box className={styles.ministry}>
+          <Text c="dimmed" size="sm">Ogun State</Text>
+          <Text fw={900}>Ministry of Education</Text>
+        </Box>
+      ) : null}
     </aside>
   );
 }
