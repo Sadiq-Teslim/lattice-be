@@ -57,7 +57,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
-      <Group className={styles.logo} gap="sm" justify={collapsed ? "center" : "space-between"} wrap="nowrap">
+      <div className={styles.logo}>
         <Group className={styles.brandMark} gap="sm" wrap="nowrap">
           <img alt="Ogun State Government" src="/ogun-logo.png" />
           {!collapsed ? <Text fw={900}>Ogun Payroll</Text> : null}
@@ -72,7 +72,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
         >
           <Burger opened={!collapsed} size={18} />
         </ActionIcon>
-      </Group>
+      </div>
 
       <Stack className={styles.nav} gap={6}>
         {items.map((item) => {

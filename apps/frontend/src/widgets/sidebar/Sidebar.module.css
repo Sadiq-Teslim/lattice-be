@@ -14,15 +14,29 @@
 }
 
 .collapsed {
-  width: 96px;
+  width: 88px;
 }
 
 .logo {
+  display: grid;
   min-height: 48px;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-sm);
 }
 
 .brandMark {
   min-width: 0;
+}
+
+.collapsed .logo {
+  grid-template-columns: 1fr;
+  justify-items: center;
+  gap: var(--space-sm);
+}
+
+.collapsed .brandMark {
+  justify-content: center;
 }
 
 .logo img {
@@ -38,6 +52,11 @@
 .nav {
   align-content: start;
   overflow: visible;
+}
+
+.collapsed .nav {
+  align-items: center;
+  gap: 10px;
 }
 
 .navRoot {
@@ -73,8 +92,11 @@
 
 .iconNavItem {
   display: grid;
-  width: 56px;
-  height: 56px;
+  inline-size: 52px;
+  block-size: 52px;
+  min-width: 52px;
+  max-width: 52px;
+  flex: 0 0 52px;
   place-items: center;
   border-radius: 12px;
   color: var(--color-text-secondary);
@@ -101,10 +123,6 @@
 .iconNavItemActive:hover {
   background: var(--color-brand);
   color: white;
-}
-
-.collapsed .nav {
-  align-items: center;
 }
 
 .ministry {
@@ -143,15 +161,12 @@
     flex: 0 0 auto;
   }
 
-  .collapsed .iconNavItem,
-  .navRoot {
-    min-width: 48px;
-    padding-inline: 12px;
-  }
-
   .collapsed .iconNavItem {
     width: 48px;
     height: 48px;
+    min-width: 48px;
+    max-width: 48px;
+    flex-basis: 48px;
   }
 
   .ministry {
