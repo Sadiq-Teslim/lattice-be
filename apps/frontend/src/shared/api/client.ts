@@ -4,7 +4,6 @@ import type {
   BiasAuditResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
-  JobResponse,
   LivenessEvaluationResponse,
   VerificationFinalizeResponse,
   VerificationSession,
@@ -85,6 +84,7 @@ export const latticeApi = {
     confirmation_date: string;
     last_promotion_date: string;
     retirement_date: string;
+    document_numbers: Record<string, string>;
     required_documents: string[];
     submitted_documents: string[];
   }> = {}) =>
@@ -94,20 +94,14 @@ export const latticeApi = {
         worker_record: {
           worker_id: worker.worker_code,
           full_name: worker.full_name,
-          payroll_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
-          bvn_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
-          file_dob: isoDate(worker.date_of_birth) ?? "1986-03-14",
-          appointment_date: "2014-09-15",
-          first_salary_date: "2014-10-25",
-          confirmation_date: "2016-09-15",
-          last_promotion_date: "2023-01-01",
-          retirement_date: "2046-03-14",
+          payroll_dob: isoDate(worker.date_of_birth),
+          bvn_dob: isoDate(worker.date_of_birth),
+          file_dob: isoDate(worker.date_of_birth),
           document_numbers: {
-            appointment_letter: `OG-MOE-${worker.worker_code.slice(-5)}`,
             bvn: worker.bvn,
           },
-          required_documents: ["appointment_letter", "birth_certificate", "promotion_letter"],
-          submitted_documents: ["appointment_letter", "birth_certificate", "promotion_letter"],
+          required_documents: [],
+          submitted_documents: [],
           ...overrides,
         },
         cohort_records: [],
@@ -154,51 +148,26 @@ export const latticeApi = {
       { method: "POST" },
     ),
 
-  verifyAndDisburse: (workerId: string, payCycleId: string) =>
+  verifyAndDisburse: (
+    workerId: string,
+    payCycleId: string,
+    evidence: {
+      liveness?: Record<string, unknown>;
+      deepfake?: Record<string, unknown>;
+      face_match?: Record<string, unknown>;
+      bvn?: Record<string, unknown>;
+      documents?: Record<string, unknown>;
+    } = {},
+  ) =>
     request<VerifyAndDisburseResponse>("/sdk/verify-and-disburse", {
       method: "POST",
       protected: true,
       body: JSON.stringify({
         worker_id: workerId,
         pay_cycle_id: payCycleId,
-        evidence: {
-          liveness: { status: "PASSED", confidence: 0.96, attempts: 1 },
-          deepfake: { status: "CLEAN", synthetic_probability: 0.02 },
-          face_match: { status: "MATCH", similarity: 0.98 },
-          bvn: { status: "BVN_MATCH", provider: "SQUAD" },
-          documents: {
-            status: "DOCUMENTS_CLEAN",
-            severity: "NONE",
-            flags: [],
-            summary: "No document contradictions found.",
-          },
-        },
+        evidence,
         initiate_transfer: false,
       }),
-    }),
-
-  enqueueVerification: (workerId: string, payCycleId: string) =>
-    request<{ job_id: string; status: string }>("/jobs/sdk-verification", {
-      method: "POST",
-      protected: true,
-      body: JSON.stringify({
-        request: {
-          worker_id: workerId,
-          pay_cycle_id: payCycleId,
-          evidence: {
-            liveness: { status: "PASSED", confidence: 0.96, attempts: 1 },
-            deepfake: { status: "CLEAN", synthetic_probability: 0.02 },
-            face_match: { status: "MATCH", similarity: 0.98 },
-            bvn: { status: "BVN_MATCH", provider: "SQUAD" },
-          },
-          initiate_transfer: false,
-        },
-      }),
-    }),
-
-  getJob: (jobId: string) =>
-    request<JobResponse>(`/jobs/${encodeURIComponent(jobId)}`, {
-      protected: true,
     }),
 
   runBiasAudit: () =>

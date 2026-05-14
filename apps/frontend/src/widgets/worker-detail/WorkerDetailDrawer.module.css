@@ -93,6 +93,18 @@
   justify-content: center;
 }
 
+.pendingScore {
+  display: grid;
+  width: 120px;
+  height: 120px;
+  place-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-weight: 800;
+  text-align: center;
+}
+
 .decisionCopy {
   display: grid;
   justify-items: start;

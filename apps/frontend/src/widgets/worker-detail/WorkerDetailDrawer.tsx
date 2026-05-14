@@ -29,8 +29,14 @@ const featureLabels: Record<string, string> = {
 export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDetailDrawerProps) {
   if (!worker) return null;
   const flags = viq?.flags ?? (anomaly?.flagged ? ["ANOMALY_FLAGGED"] : []);
-  const score = viq?.trust_score ?? (anomaly?.flagged ? 76 : 92);
+  const score = viq?.trust_score;
   const anomalyFlagged = Boolean(anomaly?.flagged || flags.includes("ANOMALY_FLAGGED"));
+  const bvnUnverified = flags.includes("BVN_UNVERIFIED");
+  const livenessUnverified = flags.includes("LIVENESS_UNVERIFIED");
+  const deepfakeUnverified = flags.includes("DEEPFAKE_UNVERIFIED");
+  const bvnMismatch = flags.includes("BVN_MISMATCH");
+  const documentIssue = flags.includes("DOB_MISMATCH") || flags.includes("DOCUMENT_INCONSISTENCY");
+  const livenessFail = flags.includes("LIVENESS_FAIL");
   const rawVerdict = viq?.verdict ?? (anomalyFlagged ? "REVIEW" : "PENDING");
   const verdict = rawVerdict === "PASS" && flags.length ? "REVIEW" : rawVerdict;
   const paymentStatus =
@@ -60,9 +66,13 @@ export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDeta
         </div>
 
         <Card className={styles.decisionCard}>
-          <div className={styles.gauge}>
-            <TrustScoreGauge score={score} size="large" />
-          </div>
+          {typeof score === "number" ? (
+            <div className={styles.gauge}>
+              <TrustScoreGauge score={score} size="large" verdict={viq?.verdict} />
+            </div>
+          ) : (
+            <div className={styles.pendingScore}>Not verified</div>
+          )}
           <div className={styles.decisionCopy}>
             <span>Payroll decision</span>
             <h3>{paymentStatus}</h3>
@@ -80,7 +90,7 @@ export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDeta
             Staff profile
           </h3>
           <div className={styles.profileGrid}>
-            <Detail label="Department" value={worker.department ?? "Teaching Service"} />
+            <Detail label="Department" value={worker.department ?? "Not provided"} />
             <Detail label="DOB" value={formatDate(worker.date_of_birth)} />
             <Detail label="Salary" value={formatMoney(worker.salary_amount)} />
             <Detail label="Phone" value={worker.phone} />
@@ -95,9 +105,10 @@ export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDeta
             Verification checks
           </h3>
           <div className={styles.checks}>
-            <CheckRow label="Identity and BVN" status={viq ? "Checked" : "Pending"} ok={!flags.includes("BVN_MISMATCH")} />
-            <CheckRow label="Document consistency" status={flags.includes("DOB_MISMATCH") ? "Review" : "Clean"} ok={!flags.includes("DOB_MISMATCH")} />
-            <CheckRow label="Proof of life" status={flags.includes("LIVENESS_FAIL") ? "Failed" : "Passed"} ok={!flags.includes("LIVENESS_FAIL")} />
+            <CheckRow label="Identity and BVN" status={viq ? (bvnUnverified ? "Pending" : bvnMismatch ? "Review" : "Checked") : "Pending"} ok={Boolean(viq && !bvnUnverified && !bvnMismatch)} />
+            <CheckRow label="Document consistency" status={viq ? (documentIssue ? "Review" : "Checked") : "Pending"} ok={Boolean(viq && !documentIssue)} />
+            <CheckRow label="Proof of life" status={viq ? (livenessUnverified ? "Pending" : livenessFail ? "Failed" : "Checked") : "Pending"} ok={Boolean(viq && !livenessUnverified && !livenessFail)} />
+            <CheckRow label="Media authenticity" status={viq ? (deepfakeUnverified ? "Pending" : flags.includes("DEEPFAKE_DETECTED") ? "Failed" : "Checked") : "Pending"} ok={Boolean(viq && !deepfakeUnverified && !flags.includes("DEEPFAKE_DETECTED"))} />
             <CheckRow label="Payroll anomaly" status={anomalyFlagged ? "Review" : "Clear"} ok={!anomalyFlagged} />
           </div>
         </Card>

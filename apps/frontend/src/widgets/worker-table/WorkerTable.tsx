@@ -1,5 +1,5 @@
 import { Badge, Button, FlagPill, TrustScoreGauge } from "@/shared/ui";
-import type { AnomalyResult, Viq, Worker } from "@/shared/api/types";
+import type { AnomalyResult, DocumentConsistencyResponse, Viq, Worker } from "@/shared/api/types";
 import { verdictVariant } from "@/entities/viq/model";
 import styles from "./WorkerTable.module.css";
 
@@ -7,6 +7,7 @@ type WorkerTableProps = {
   workers: Worker[];
   anomalies: AnomalyResult[];
   viqs: Record<string, Viq>;
+  documentResults?: Record<string, DocumentConsistencyResponse>;
   disbursedIds?: Set<string>;
   selectedId?: string;
   onSelect: (worker: Worker) => void;
@@ -17,6 +18,7 @@ export function WorkerTable({
   workers,
   anomalies,
   viqs,
+  documentResults = {},
   disbursedIds = new Set(),
   selectedId,
   onSelect,
@@ -30,10 +32,9 @@ export function WorkerTable({
         <thead>
           <tr>
             <th>Staff Record</th>
-            <th>Posting</th>
-            <th>Grade / Step</th>
+            <th>Department</th>
             <th>Gross Pay</th>
-            <th>Document File</th>
+            <th>Documents</th>
             <th>Trust Score</th>
             <th>Decision</th>
             <th>Actions</th>
@@ -42,7 +43,7 @@ export function WorkerTable({
         <tbody>
           {workers.length === 0 ? (
             <tr>
-              <td className={styles.empty} colSpan={8}>
+              <td className={styles.empty} colSpan={7}>
                 No staff records match the current filter.
               </td>
             </tr>
@@ -51,17 +52,16 @@ export function WorkerTable({
             const viq = viqs[worker.id];
             const anomaly = anomalyByCode.get(worker.worker_code);
             const flags = viq?.flags ?? (anomaly?.flagged ? ["ANOMALY_FLAGGED"] : []);
-            const verdict = viq?.verdict ?? (anomaly?.flagged ? "REVIEW" : "PENDING");
-            const score = viq?.trust_score ?? (anomaly?.flagged ? 76 : 92);
-            const grade = payrollGrade(worker);
-            const documentStatus = anomaly?.flagged ? "Needs review" : "Complete";
+            const verdict = viq?.verdict ?? (anomaly?.flagged ? "REVIEW" : "NOT_VERIFIED");
+            const documentResult = documentResults[worker.id];
+            const documentStatus = documentResult?.status ?? "NOT_CHECKED";
             const payment = disbursedIds.has(worker.id)
               ? "Released"
               : verdict === "FAIL"
                 ? "Blocked"
                 : verdict === "REVIEW"
                   ? "Held"
-                  : "Ready";
+                  : "Not ready";
             return (
               <tr
                 className={`${selectedId === worker.id ? styles.selected : ""} ${
@@ -79,27 +79,28 @@ export function WorkerTable({
                 </td>
                 <td data-label="Posting">
                   <div className={styles.primaryCell}>
-                    <strong>{worker.department ?? "Teaching Service"}</strong>
-                    <span>{schoolPosting(worker)}</span>
+                    <strong>{worker.department ?? "Not provided"}</strong>
+                    <span>{displayMinistry(worker.ministry)}</span>
                     <small>{worker.status}</small>
                   </div>
-                </td>
-                <td data-label="Grade / Step">
-                  <strong>{grade}</strong>
                 </td>
                 <td data-label="Gross Pay">{formatMoney(worker.salary_amount)}</td>
                 <td data-label="Document File">
                   <Badge
-                    label={documentStatus}
-                    variant={documentStatus === "Complete" ? "success" : "warning"}
+                    label={humanizeStatus(documentStatus)}
+                    variant={documentStatus === "DOCUMENTS_CLEAN" ? "success" : "warning"}
                   />
                 </td>
                 <td data-label="Trust Score">
-                  <TrustScoreGauge score={score} />
+                  {viq ? (
+                    <TrustScoreGauge score={viq.trust_score} verdict={viq.verdict} />
+                  ) : (
+                    <span className={styles.muted}>Not verified</span>
+                  )}
                 </td>
                 <td data-label="Decision">
                   <div className={styles.decision}>
-                    <Badge label={verdict} variant={verdictVariant(verdict)} />
+                    <Badge label={humanizeStatus(verdict)} variant={verdictVariant(verdict)} />
                     <span className={styles.payment}>{payment}</span>
                     <div className={styles.flags}>
                       {flags.length ? flags.map((flag) => <FlagPill flag={flag} key={flag} />) : null}
@@ -127,25 +128,19 @@ export function WorkerTable({
   );
 }
 
-function payrollGrade(worker: Worker) {
-  const amount = Number(worker.salary_amount);
-  if (amount >= 145000) return "GL 13 / Step 6";
-  if (amount >= 120000) return "GL 10 / Step 5";
-  if (amount >= 95000) return "GL 08 / Step 4";
-  return "GL 07 / Step 2";
-}
-
-function schoolPosting(worker: Worker) {
-  const suffix = worker.worker_code.slice(-2);
-  const zones = ["Abeokuta South", "Ijebu-Ode", "Odeda", "Sagamu", "Yewa North"];
-  return `${zones[Number.parseInt(suffix, 10) % zones.length]} LGA`;
-}
-
 function formatDate(value?: string) {
   if (!value) return "not supplied";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function humanizeStatus(value: string) {
+  return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function displayMinistry(value: string) {
+  return value.replace(/\s+Demo\s+[A-Z0-9-]+$/i, "");
 }
 
 function formatMoney(value: string) {

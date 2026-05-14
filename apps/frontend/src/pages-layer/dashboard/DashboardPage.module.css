@@ -282,10 +282,27 @@
 
 .formCard,
 .capabilityCard,
-.reportCard {
+.reportCard,
+.emptyState {
   display: grid;
   gap: var(--space-sm);
   padding: var(--space-md);
+}
+
+.emptyState {
+  align-content: center;
+  min-height: 180px;
+}
+
+.emptyState h2,
+.emptyState p {
+  margin: 0;
+}
+
+.emptyState p {
+  max-width: 720px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
 }
 
 .formCard label {

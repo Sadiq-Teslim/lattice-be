@@ -59,7 +59,7 @@ export function WorkerVerifyPage() {
       const workers = await latticeApi.listWorkers(seed.ministry);
       const selected =
         workers.find((item) => item.risk_metadata?.is_injected_ghost !== true) ?? workers[0];
-      if (!selected) throw new Error("No worker was returned for this demo session.");
+      if (!selected) throw new Error("No worker was returned for this verification session.");
       const createdSession = await latticeApi.createVerificationSession(
         selected.id,
         seed.pay_cycle_id,
@@ -198,7 +198,7 @@ export function WorkerVerifyPage() {
           <p>{worker.full_name}</p>
         </section>
         <section className={styles.resultBody}>
-          <TrustScoreGauge score={viq.trust_score} size="large" />
+          <TrustScoreGauge score={viq.trust_score} size="large" verdict={viq.verdict} />
           <strong>{workerAmount}</strong>
           <span>VIQ: {viq.id}</span>
           <span>Payment status: {viq.payment_status}</span>
@@ -239,7 +239,7 @@ export function WorkerVerifyPage() {
             <div className={styles.workerBlock}>
               <span>{worker.full_name}</span>
               <strong>{worker.worker_code}</strong>
-              <small>Pay Cycle: May 2026</small>
+              <small>Pay cycle: {session?.pay_cycle_id ?? "Not assigned"}</small>
               <small>Expected: {workerAmount}</small>
             </div>
             <p>Complete the check from your phone so payroll can release your salary.</p>
@@ -297,23 +297,19 @@ export function WorkerVerifyPage() {
           <Card className={styles.screen}>
             <UploadCloud size={36} strokeWidth={1.5} />
             <h1>Document consistency</h1>
-            <p>Confirm your personnel file so Lattice can compare dates and identity records.</p>
+            <p>Confirm your personnel file so HR can compare dates and identity records.</p>
             <div className={styles.documentGrid}>
+              <div>
+                <span>Staff ID</span>
+                <strong>{worker.worker_code}</strong>
+              </div>
               <div>
                 <span>Date of birth</span>
                 <strong>{formatDisplayDate(worker.date_of_birth)}</strong>
               </div>
               <div>
-                <span>First appointment</span>
-                <strong>15 Sep 2014</strong>
-              </div>
-              <div>
-                <span>First salary</span>
-                <strong>25 Oct 2014</strong>
-              </div>
-              <div>
-                <span>Required documents</span>
-                <strong>3 of 3 uploaded</strong>
+                <span>Department</span>
+                <strong>{worker.department ?? "Not provided"}</strong>
               </div>
             </div>
             {documents ? <p className={styles.meta}>Documents: {documents.status}</p> : null}

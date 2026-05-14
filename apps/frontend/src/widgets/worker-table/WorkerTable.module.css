@@ -61,6 +61,12 @@
   font-weight: 700;
 }
 
+.muted {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .primaryCell,
 .decision {
   display: grid;
