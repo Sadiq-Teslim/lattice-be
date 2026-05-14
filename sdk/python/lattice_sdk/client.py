@@ -19,7 +19,7 @@ class LatticeClient:
         *,
         base_url: str,
         api_key: str | None = None,
-        timeout: float = 30.0,
+        timeout: float = 120.0,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")

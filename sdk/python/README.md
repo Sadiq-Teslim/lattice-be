@@ -15,6 +15,9 @@ from lattice_sdk import LatticeClient
 
 client = LatticeClient(base_url="http://127.0.0.1:8010/api/v1")
 
+# Render free-tier services can cold-start slowly. The SDK defaults to a
+# 120-second timeout so first requests have room to wake the service.
+
 result = client.verify_and_disburse(
     worker_id="worker-id",
     pay_cycle_id="pay-cycle-id",
