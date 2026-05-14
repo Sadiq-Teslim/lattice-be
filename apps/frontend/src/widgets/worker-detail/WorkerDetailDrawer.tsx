@@ -15,7 +15,11 @@ type WorkerDetailDrawerProps = {
   worker: Worker | null;
   anomaly?: AnomalyResult;
   viq?: Viq;
+  isReleased?: boolean;
+  isFlagged?: boolean;
   onClose: () => void;
+  onApprove?: (worker: Worker) => void;
+  onFlag?: (worker: Worker) => void;
 };
 
 const featureLabels: Record<string, string> = {
@@ -26,7 +30,16 @@ const featureLabels: Record<string, string> = {
   registration_burst_count: "Registered in suspicious burst",
 };
 
-export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDetailDrawerProps) {
+export function WorkerDetailDrawer({
+  worker,
+  anomaly,
+  viq,
+  isReleased = false,
+  isFlagged = false,
+  onClose,
+  onApprove,
+  onFlag,
+}: WorkerDetailDrawerProps) {
   if (!worker) return null;
   const flags = viq?.flags ?? (anomaly?.flagged ? ["ANOMALY_FLAGGED"] : []);
   const score = viq?.trust_score;
@@ -40,13 +53,17 @@ export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDeta
   const rawVerdict = viq?.verdict ?? (anomalyFlagged ? "REVIEW" : "PENDING");
   const verdict = rawVerdict === "PASS" && flags.length ? "REVIEW" : rawVerdict;
   const paymentStatus =
-    verdict === "PASS"
-      ? "Ready for release"
-      : verdict === "FAIL"
-        ? "Blocked"
-        : verdict === "REVIEW"
-          ? "Held for HR review"
-          : "Awaiting verification";
+    isFlagged
+      ? "Flagged for investigation"
+      : isReleased
+        ? "Released"
+        : verdict === "PASS"
+          ? "Ready for release"
+          : verdict === "FAIL"
+            ? "Blocked"
+            : verdict === "REVIEW"
+              ? "Held for HR review"
+              : "Awaiting verification";
   const verdictVariant = verdict === "PASS" ? "success" : verdict === "FAIL" ? "danger" : "warning";
 
   return (
@@ -158,9 +175,15 @@ export function WorkerDetailDrawer({ worker, anomaly, viq, onClose }: WorkerDeta
         </Card>
 
         <div className={styles.actions}>
-          <Button fullWidth disabled={verdict === "FAIL"}>Approve Payment</Button>
-          <Button fullWidth variant="secondary">
-            Flag for Investigation
+          <Button
+            fullWidth
+            disabled={verdict !== "PASS" || isReleased || isFlagged}
+            onClick={() => onApprove?.(worker)}
+          >
+            {isReleased ? "Payment Approved" : "Approve Payment"}
+          </Button>
+          <Button fullWidth disabled={isFlagged} onClick={() => onFlag?.(worker)} variant="secondary">
+            {isFlagged ? "Flagged for Investigation" : "Flag for Investigation"}
           </Button>
         </div>
       </aside>

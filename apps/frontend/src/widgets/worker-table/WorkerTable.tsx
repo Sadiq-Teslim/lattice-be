@@ -9,6 +9,7 @@ type WorkerTableProps = {
   viqs: Record<string, Viq>;
   documentResults?: Record<string, DocumentConsistencyResponse>;
   disbursedIds?: Set<string>;
+  investigationIds?: Set<string>;
   selectedId?: string;
   onSelect: (worker: Worker) => void;
   onVerify: (worker: Worker) => void;
@@ -20,6 +21,7 @@ export function WorkerTable({
   viqs,
   documentResults = {},
   disbursedIds = new Set(),
+  investigationIds = new Set(),
   selectedId,
   onSelect,
   onVerify,
@@ -55,13 +57,15 @@ export function WorkerTable({
             const verdict = viq?.verdict ?? (anomaly?.flagged ? "REVIEW" : "NOT_VERIFIED");
             const documentResult = documentResults[worker.id];
             const documentStatus = documentResult?.status ?? "NOT_CHECKED";
-            const payment = disbursedIds.has(worker.id)
-              ? "Released"
-              : verdict === "FAIL"
-                ? "Blocked"
-                : verdict === "REVIEW"
-                  ? "Held"
-                  : "Not ready";
+            const payment = investigationIds.has(worker.id)
+              ? "Flagged"
+              : disbursedIds.has(worker.id)
+                ? "Released"
+                : verdict === "FAIL"
+                  ? "Blocked"
+                  : verdict === "REVIEW"
+                    ? "Held"
+                    : "Not ready";
             return (
               <tr
                 className={`${selectedId === worker.id ? styles.selected : ""} ${

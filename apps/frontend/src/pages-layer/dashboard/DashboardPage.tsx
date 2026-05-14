@@ -33,8 +33,49 @@ type PaginationState = {
   pageSize: number;
   onPageChange: (page: number) => void;
 };
+type ExerciseRule =
+  | "proof_of_life"
+  | "identity_bvn"
+  | "document_consistency"
+  | "payroll_anomaly"
+  | "media_authenticity";
 
 const PAGE_SIZE = 12;
+const verificationRules: Array<{ key: ExerciseRule; label: string; detail: string }> = [
+  {
+    key: "proof_of_life",
+    label: "Proof of life",
+    detail: "Worker completes a camera liveness challenge before HR accepts the submission.",
+  },
+  {
+    key: "identity_bvn",
+    label: "Identity and BVN",
+    detail: "Worker identity evidence is checked against payroll and BVN/account records.",
+  },
+  {
+    key: "document_consistency",
+    label: "Document consistency",
+    detail: "Dates and personnel file fields are compared for contradictions.",
+  },
+  {
+    key: "payroll_anomaly",
+    label: "Payroll anomaly",
+    detail: "Shared devices, BVNs, IPs, and location clusters are scanned across the cohort.",
+  },
+  {
+    key: "media_authenticity",
+    label: "Media authenticity",
+    detail: "Captured face evidence is checked for synthetic-media risk when provided.",
+  },
+];
+const exerciseDocuments = [
+  "Appointment letter",
+  "Birth certificate / declaration of age",
+  "Last promotion letter",
+  "Posting letter",
+  "Staff ID card",
+  "BVN identity record",
+];
 
 export function DashboardPage() {
   const autoSeedStarted = useRef(false);
@@ -48,11 +89,20 @@ export function DashboardPage() {
   const [biasAudit, setBiasAudit] = useState<BiasAuditResponse | null>(null);
   const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
   const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
+  const [investigationIds, setInvestigationIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>("ALL");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exerciseName, setExerciseName] = useState("Annual Staff Verification Exercise");
+  const [exerciseScope, setExerciseScope] = useState("All ministry staff");
+  const [selectedExerciseRules, setSelectedExerciseRules] = useState<Set<ExerciseRule>>(
+    new Set(["proof_of_life", "identity_bvn", "document_consistency", "payroll_anomaly"]),
+  );
+  const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(
+    new Set(["Appointment letter", "Birth certificate / declaration of age", "Staff ID card"]),
+  );
 
   const anomalies = anomalyScan?.results ?? [];
   const anomalyByCode = useMemo(
@@ -82,28 +132,28 @@ export function DashboardPage() {
   };
 
   const blocked = workers.filter((worker) => viqs[worker.id]?.verdict === "FAIL").length;
-  const review = workers.filter((worker) => {
+  const held = workers.filter((worker) => {
     const viq = viqs[worker.id];
     const anomaly = anomalyByCode.get(worker.worker_code);
-    return viq?.verdict === "REVIEW" || anomaly?.flagged;
+    return viq?.verdict === "REVIEW" || viq?.verdict === "FAIL" || anomaly?.flagged || investigationIds.has(worker.id);
   }).length;
-  const held = review + blocked;
   const cleared = workers.filter((worker) => {
     const viq = viqs[worker.id];
     const anomaly = anomalyByCode.get(worker.worker_code);
-    return viq?.verdict === "PASS" && !anomaly?.flagged;
+    return viq?.verdict === "PASS" && !anomaly?.flagged && !investigationIds.has(worker.id);
   }).length;
   const grossPayroll = workers.reduce((sum, worker) => sum + Number(worker.salary_amount || 0), 0);
   const heldPayroll = workers.reduce((sum, worker) => {
     const viq = viqs[worker.id];
     const anomaly = anomalyByCode.get(worker.worker_code);
-    const shouldHold = viq?.verdict === "REVIEW" || viq?.verdict === "FAIL" || anomaly?.flagged;
+    const shouldHold =
+      viq?.verdict === "REVIEW" || viq?.verdict === "FAIL" || anomaly?.flagged || investigationIds.has(worker.id);
     return shouldHold ? sum + Number(worker.salary_amount || 0) : sum;
   }, 0);
   const netEligible = workers.reduce((sum, worker) => {
     const viq = viqs[worker.id];
     const anomaly = anomalyByCode.get(worker.worker_code);
-    const eligible = viq?.verdict === "PASS" && !anomaly?.flagged;
+    const eligible = viq?.verdict === "PASS" && !anomaly?.flagged && !investigationIds.has(worker.id);
     return eligible ? sum + Number(worker.salary_amount || 0) : sum;
   }, 0);
   const batchStatus =
@@ -146,6 +196,7 @@ export function DashboardPage() {
     setViqs({});
     setDocumentResults({});
     setDisbursedIds(new Set());
+    setInvestigationIds(new Set());
     setPayrollStage("IMPORTED");
     const listedWorkers = await runAction("workers", () => latticeApi.listWorkers(result.ministry));
     if (listedWorkers) {
@@ -204,11 +255,46 @@ export function DashboardPage() {
       .filter((worker) => {
         const viq = viqs[worker.id];
         const anomaly = anomalyByCode.get(worker.worker_code);
-        return !anomaly?.flagged && viq?.verdict === "PASS";
+        return !investigationIds.has(worker.id) && !anomaly?.flagged && viq?.verdict === "PASS";
       })
       .map((worker) => worker.id);
     setDisbursedIds(new Set(eligibleIds));
     setPayrollStage("DISBURSED");
+  }
+
+  function approveWorker(worker: Worker) {
+    const viq = viqs[worker.id];
+    const anomaly = anomalyByCode.get(worker.worker_code);
+    if (viq?.verdict !== "PASS" || anomaly?.flagged || investigationIds.has(worker.id)) return;
+    setDisbursedIds((current) => new Set(current).add(worker.id));
+    setPayrollStage("DISBURSED");
+  }
+
+  function flagWorker(worker: Worker) {
+    setInvestigationIds((current) => new Set(current).add(worker.id));
+    setDisbursedIds((current) => {
+      const next = new Set(current);
+      next.delete(worker.id);
+      return next;
+    });
+  }
+
+  function toggleExerciseRule(rule: ExerciseRule) {
+    setSelectedExerciseRules((current) => {
+      const next = new Set(current);
+      if (next.has(rule)) next.delete(rule);
+      else next.add(rule);
+      return next;
+    });
+  }
+
+  function toggleExerciseDocument(document: string) {
+    setSelectedDocuments((current) => {
+      const next = new Set(current);
+      if (next.has(document)) next.delete(document);
+      else next.add(document);
+      return next;
+    });
   }
 
   const selectedAnomaly = selectedWorker
@@ -220,7 +306,13 @@ export function DashboardPage() {
     <div className={styles.shell}>
       <Sidebar activePage={activePage} onNavigate={setActivePage} />
       <main className={styles.main}>
-        <TopBar />
+        <TopBar
+          query={query}
+          onQuery={(value) => {
+            setQuery(value);
+            if (value.trim()) setActivePage("staff");
+          }}
+        />
         <PageHeader
           activePage={activePage}
           batchStatus={batchStatus}
@@ -254,6 +346,7 @@ export function DashboardPage() {
             viqs={viqs}
             documentResults={documentResults}
             disbursedIds={disbursedIds}
+            investigationIds={investigationIds}
             selectedId={selectedWorker?.id}
             filter={filter}
             query={query}
@@ -273,6 +366,7 @@ export function DashboardPage() {
             anomalies={anomalies}
             viqs={viqs}
             disbursedIds={disbursedIds}
+            investigationIds={investigationIds}
             documentResults={documentResults}
             selectedId={selectedWorker?.id}
             grossPayroll={grossPayroll}
@@ -288,14 +382,18 @@ export function DashboardPage() {
         ) : null}
 
         {activePage === "exercises" ? (
-          <ExercisesView />
-        ) : null}
-
-        {activePage === "checks" ? (
-          <VerificationRulesView
+          <ExercisesView
             biasAudit={biasAudit}
+            exerciseName={exerciseName}
+            exerciseScope={exerciseScope}
             loading={loading === "bias"}
+            selectedDocuments={selectedDocuments}
+            selectedRules={selectedExerciseRules}
             onBiasAudit={runBiasAudit}
+            onDocumentToggle={toggleExerciseDocument}
+            onNameChange={setExerciseName}
+            onRuleToggle={toggleExerciseRule}
+            onScopeChange={setExerciseScope}
           />
         ) : null}
 
@@ -304,7 +402,12 @@ export function DashboardPage() {
         ) : null}
 
         {activePage === "disbursements" ? (
-          <DisbursementsView workers={workers} viqs={viqs} disbursedIds={disbursedIds} />
+          <DisbursementsView
+            workers={workers}
+            viqs={viqs}
+            disbursedIds={disbursedIds}
+            investigationIds={investigationIds}
+          />
         ) : null}
 
         {activePage === "documents" ? (
@@ -320,20 +423,28 @@ export function DashboardPage() {
 
       <WorkerDetailDrawer
         anomaly={selectedAnomaly}
+        isFlagged={selectedWorker ? investigationIds.has(selectedWorker.id) : false}
+        isReleased={selectedWorker ? disbursedIds.has(selectedWorker.id) : false}
         viq={selectedViq}
         worker={selectedWorker}
+        onApprove={approveWorker}
         onClose={() => setSelectedWorker(null)}
+        onFlag={flagWorker}
       />
     </div>
   );
 }
 
-function TopBar() {
+function TopBar({ query, onQuery }: { query: string; onQuery: (value: string) => void }) {
   return (
     <div className={styles.topbar}>
       <label className={styles.searchBox}>
         <Search size={20} strokeWidth={1.5} />
-        <input placeholder="Search staff, payroll batch, document, or VIQ" />
+        <input
+          placeholder="Search staff, payroll batch, document, or VIQ"
+          value={query}
+          onChange={(event) => onQuery(event.target.value)}
+        />
       </label>
       <div className={styles.operator}>
         <img alt="Ogun State" src="/ogun-logo.png" />
@@ -455,6 +566,7 @@ function StaffRecordsView(props: {
   viqs: Record<string, Viq>;
   documentResults: Record<string, DocumentConsistencyResponse>;
   disbursedIds: Set<string>;
+  investigationIds: Set<string>;
   selectedId?: string;
   filter: Filter;
   query: string;
@@ -483,6 +595,7 @@ function StaffRecordsView(props: {
         anomalies={props.anomalies}
         documentResults={props.documentResults}
         disbursedIds={props.disbursedIds}
+        investigationIds={props.investigationIds}
         selectedId={props.selectedId}
         viqs={props.viqs}
         workers={props.workers}
@@ -499,6 +612,7 @@ function PayrollView(props: {
   anomalies: AnomalyResult[];
   viqs: Record<string, Viq>;
   disbursedIds: Set<string>;
+  investigationIds: Set<string>;
   documentResults: Record<string, DocumentConsistencyResponse>;
   selectedId?: string;
   grossPayroll: number;
@@ -526,14 +640,17 @@ function PayrollView(props: {
           <p>Verify staff records individually or in bulk before disbursement.</p>
         </div>
         <div className={styles.actions}>
-          <Button onClick={props.onRunGate}>Run Batch Verification</Button>
-          <Button onClick={props.onDisburse} variant="secondary">Disburse Eligible</Button>
+          <Button disabled={!props.workers.length} onClick={props.onRunGate}>Run Batch Verification</Button>
+          <Button disabled={props.netEligible <= 0} onClick={props.onDisburse} variant="secondary">
+            Disburse Eligible
+          </Button>
         </div>
       </div>
       <WorkerTable
         anomalies={props.anomalies}
         documentResults={props.documentResults}
         disbursedIds={props.disbursedIds}
+        investigationIds={props.investigationIds}
         selectedId={props.selectedId}
         viqs={props.viqs}
         workers={props.workers}
@@ -545,32 +662,94 @@ function PayrollView(props: {
   );
 }
 
-function ExercisesView() {
-  return (
-    <section className={styles.pageStack}>
-      <EmptyState
-        title="No verification exercises yet"
-        body="Exercise creation is not connected to a backend endpoint yet. Once it is connected, created exercises, required documents, and worker links will appear here."
-      />
-    </section>
-  );
-}
-
-function VerificationRulesView({
+function ExercisesView({
   biasAudit,
+  exerciseName,
+  exerciseScope,
   loading,
+  selectedDocuments,
+  selectedRules,
   onBiasAudit,
+  onDocumentToggle,
+  onNameChange,
+  onRuleToggle,
+  onScopeChange,
 }: {
   biasAudit: BiasAuditResponse | null;
+  exerciseName: string;
+  exerciseScope: string;
   loading: boolean;
+  selectedDocuments: Set<string>;
+  selectedRules: Set<ExerciseRule>;
   onBiasAudit: () => void;
+  onDocumentToggle: (document: string) => void;
+  onNameChange: (value: string) => void;
+  onRuleToggle: (rule: ExerciseRule) => void;
+  onScopeChange: (value: string) => void;
 }) {
   return (
     <section className={styles.pageStack}>
-      <EmptyState
-        title="No configurable verification rules yet"
-        body="This page is waiting for rule-management endpoints. Current verification still runs from the backend services when HR clicks Run Verification or Verify on a staff record."
-      />
+      <div className={styles.exerciseGrid}>
+        <Card className={styles.formCard}>
+          <h2>Create verification exercise</h2>
+          <p>
+            Configure the exercise HR wants to publish to staff. The setup is kept as a draft until publishing is connected.
+          </p>
+          <label>
+            Exercise name
+            <input value={exerciseName} onChange={(event) => onNameChange(event.target.value)} />
+          </label>
+          <label>
+            Staff scope
+            <select value={exerciseScope} onChange={(event) => onScopeChange(event.target.value)}>
+              <option>All ministry staff</option>
+              <option>Teaching staff only</option>
+              <option>Non-teaching staff only</option>
+              <option>Selected departments</option>
+            </select>
+          </label>
+          <div className={styles.generatedLink}>
+            <span>Publish status</span>
+            <strong>Worker link not available yet</strong>
+            <p>Once connected, this action should create a signed exercise link for the ministry website.</p>
+          </div>
+        </Card>
+
+        <Card className={styles.formCard}>
+          <h2>Documents to collect</h2>
+          <div className={styles.checkGrid}>
+            {exerciseDocuments.map((document) => (
+              <button
+                className={selectedDocuments.has(document) ? styles.checkActive : ""}
+                key={document}
+                onClick={() => onDocumentToggle(document)}
+                type="button"
+              >
+                {document}
+              </button>
+            ))}
+          </div>
+        </Card>
+      </div>
+
+      <Card className={styles.formCard}>
+        <h2>Verification rules</h2>
+        <p>These rules define what the exercise checks when the worker submits evidence.</p>
+        <div className={styles.ruleGrid}>
+          {verificationRules.map((rule) => (
+            <button
+              className={selectedRules.has(rule.key) ? styles.ruleActive : ""}
+              key={rule.key}
+              onClick={() => onRuleToggle(rule.key)}
+              type="button"
+            >
+              <strong>{rule.label}</strong>
+              <span>{rule.detail}</span>
+            </button>
+          ))}
+        </div>
+      </Card>
+
       <Card className={styles.capabilityCard}>
         <h2>Fairness evidence</h2>
         <p>Runs the available backend liveness fairness audit endpoint.</p>
@@ -617,10 +796,12 @@ function DisbursementsView({
   workers,
   viqs,
   disbursedIds,
+  investigationIds,
 }: {
   workers: Worker[];
   viqs: Record<string, Viq>;
   disbursedIds: Set<string>;
+  investigationIds: Set<string>;
 }) {
   return (
     <DataTable
@@ -630,7 +811,11 @@ function DisbursementsView({
         formatMoney(Number(worker.salary_amount)),
         worker.bank_account_number ?? "Pending account resolution",
         viqs[worker.id]?.verdict ?? "Awaiting verification",
-        disbursedIds.has(worker.id) ? "Released" : "Not released",
+        investigationIds.has(worker.id)
+          ? "Flagged for investigation"
+          : disbursedIds.has(worker.id)
+            ? "Released"
+            : "Not released",
         viqs[worker.id]?.squad_transaction_reference ?? "Not generated",
       ])}
     />
@@ -803,7 +988,6 @@ function pageTitle(page: ConsolePage) {
     staff: "Staff Records",
     payroll: "Payroll",
     exercises: "Verification Exercises",
-    checks: "Verification Rules",
     submissions: "Submissions",
     disbursements: "Disbursements",
     documents: "Documents",
