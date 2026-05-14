@@ -9,11 +9,11 @@ import {
   Shield,
 } from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
+import { env } from "@/shared/config/env";
 import type {
   AnomalyResult,
   AnomalyScanResponse,
   AdminSummary,
-  BiasAuditResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
   ExerciseSubmission,
@@ -94,7 +94,6 @@ export function DashboardPage() {
   const [exerciseSubmissions, setExerciseSubmissions] = useState<ExerciseSubmission[]>([]);
   const [adminSummary, setAdminSummary] = useState<AdminSummary | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
-  const [biasAudit, setBiasAudit] = useState<BiasAuditResponse | null>(null);
   const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
   const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
   const [investigationIds, setInvestigationIds] = useState<Set<string>>(new Set());
@@ -354,11 +353,6 @@ export function DashboardPage() {
     }
   }
 
-  async function runBiasAudit() {
-    const result = await runAction("bias", latticeApi.runBiasAudit);
-    if (result) setBiasAudit(result);
-  }
-
   async function disburseEligible() {
     if (!seed) return;
     const result = await runAction("release", () =>
@@ -565,16 +559,13 @@ export function DashboardPage() {
 
         {activePage === "exercises" ? (
           <ExercisesView
-            biasAudit={biasAudit}
             exercises={exercises}
             exerciseName={exerciseName}
             exerciseScope={exerciseScope}
-            loading={loading === "bias"}
             publishLoading={loading === "exercise-publish"}
             saveLoading={loading === "exercise-save"}
             selectedDocuments={selectedDocuments}
             selectedRules={selectedExerciseRules}
-            onBiasAudit={runBiasAudit}
             onDocumentToggle={toggleExerciseDocument}
             onNameChange={setExerciseName}
             onPublish={publishExercise}
@@ -868,16 +859,13 @@ function PayrollView(props: {
 }
 
 function ExercisesView({
-  biasAudit,
   exercises,
   exerciseName,
   exerciseScope,
-  loading,
   publishLoading,
   saveLoading,
   selectedDocuments,
   selectedRules,
-  onBiasAudit,
   onDocumentToggle,
   onNameChange,
   onPublish,
@@ -885,16 +873,13 @@ function ExercisesView({
   onSave,
   onScopeChange,
 }: {
-  biasAudit: BiasAuditResponse | null;
   exercises: VerificationExercise[];
   exerciseName: string;
   exerciseScope: string;
-  loading: boolean;
   publishLoading: boolean;
   saveLoading: boolean;
   selectedDocuments: Set<string>;
   selectedRules: Set<ExerciseRule>;
-  onBiasAudit: () => void;
   onDocumentToggle: (document: string) => void;
   onNameChange: (value: string) => void;
   onPublish: () => void;
@@ -997,12 +982,6 @@ function ExercisesView({
         )}
       </Card>
 
-      <Card className={styles.capabilityCard}>
-        <h2>Fairness evidence</h2>
-        <p>Runs the available backend liveness fairness audit endpoint.</p>
-        <Button loading={loading} onClick={onBiasAudit} variant="secondary">Run Bias Audit</Button>
-        {biasAudit ? <span>Groups {biasAudit.groups.length} | FPR gap {biasAudit.max_fpr_gap}</span> : null}
-      </Card>
     </section>
   );
 }
@@ -1329,8 +1308,7 @@ function documentEvidence(documents: DocumentConsistencyResponse) {
 
 function absoluteExerciseUrl(path: string) {
   if (path.startsWith("http")) return path;
-  if (typeof window === "undefined") return path;
-  return `${window.location.origin}${path}`;
+  return `${env.publicAppUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
 function documentResultsFromActions(actions: StaffAction[]) {

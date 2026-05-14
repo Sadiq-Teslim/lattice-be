@@ -267,7 +267,9 @@ def publish_exercise(exercise_id: str, db: Session = db_session) -> Verification
     if not exercise.public_token:
         exercise.public_token = secrets.token_urlsafe(24)
     exercise.status = "PUBLISHED"
-    exercise.public_url = f"/verify/exercise/{exercise.public_token}"
+    exercise.public_url = (
+        f"{settings.public_frontend_url.rstrip('/')}/verify/exercise/{exercise.public_token}"
+    )
     exercise.published_at = datetime.utcnow()
     db.add(
         AuditLog(
