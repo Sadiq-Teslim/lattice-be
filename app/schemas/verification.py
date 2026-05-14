@@ -46,12 +46,21 @@ class DocumentEvidence(BaseModel):
     summary: str | None = None
 
 
+class FinancialAccountEvidence(BaseModel):
+    status: Literal["ACCOUNT_MATCH", "ACCOUNT_MISMATCH"]
+    provider: Literal["SQUAD"]
+    bank_code: str | None = None
+    account_number: str | None = None
+    resolved_name: str | None = None
+
+
 class VerificationEvidenceSubmitRequest(BaseModel):
     liveness: LivenessEvidence | None = None
     deepfake: DeepfakeEvidence | None = None
     face_match: FaceMatchEvidence | None = None
     bvn: BvnEvidence | None = None
     documents: DocumentEvidence | None = None
+    financial_account: FinancialAccountEvidence | None = None
 
 
 class VerificationSessionResponse(BaseModel):

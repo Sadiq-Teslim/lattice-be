@@ -100,6 +100,206 @@ def generate_synthetic_payroll(config: SyntheticPayrollConfig) -> pd.DataFrame:
     return pd.DataFrame(records)
 
 
+def inject_verified_ogun_records(
+    frame: pd.DataFrame,
+    *,
+    batch_id: str,
+    ministry: str,
+    teslim_bvn: str | None = None,
+    teslim_bank_code: str | None = None,
+    teslim_account_number: str | None = None,
+    teslim_phone: str | None = None,
+    teslim_email: str | None = None,
+    teslim_dob: str | None = None,
+) -> pd.DataFrame:
+    records = frame.to_dict(orient="records")
+    verified_records = _verified_ogun_records(
+        batch_id=batch_id,
+        ministry=ministry,
+        teslim_bvn=teslim_bvn,
+        teslim_bank_code=teslim_bank_code,
+        teslim_account_number=teslim_account_number,
+        teslim_phone=teslim_phone,
+        teslim_email=teslim_email,
+        teslim_dob=teslim_dob,
+    )
+    for index, record in enumerate(verified_records):
+        if index < len(records):
+            records[index] = record
+        else:
+            records.append(record)
+    return pd.DataFrame(records)
+
+
+def _verified_ogun_records(
+    *,
+    batch_id: str,
+    ministry: str,
+    teslim_bvn: str | None,
+    teslim_bank_code: str | None,
+    teslim_account_number: str | None,
+    teslim_phone: str | None,
+    teslim_email: str | None,
+    teslim_dob: str | None,
+) -> list[dict]:
+    base_time = datetime(2026, 5, 1, 8, 0, 0)
+    records = [
+        _verified_worker_record(
+            worker_code=f"EDU-{batch_id}-V0001",
+            full_name="Teslim Adetola Sadiq",
+            bvn=teslim_bvn,
+            phone=teslim_phone,
+            email=teslim_email,
+            date_of_birth=teslim_dob,
+            gender="1",
+            address="Ogun State Ministry of Education staff file",
+            ministry=ministry,
+            department="Teacher Development",
+            salary_amount=Decimal("185000"),
+            bank_code=teslim_bank_code,
+            bank_account_number=teslim_account_number,
+            bank_account_name="Teslim Adetola Sadiq",
+            device_id=f"verified-device-{batch_id.lower()}-teslim",
+            gps_lat=Decimal("7.1475"),
+            gps_lng=Decimal("3.3619"),
+            registration_ip="10.44.12.21",
+            registration_timestamp=base_time + timedelta(minutes=15),
+        ),
+        _verified_worker_record(
+            worker_code=f"EDU-{batch_id}-V0002",
+            full_name="Adebayo Ogunleye",
+            bvn="22800000002",
+            phone="08030000002",
+            email="adebayo.ogunleye@ogunstate.gov.ng",
+            date_of_birth="1985-04-12",
+            gender="1",
+            address="Abeokuta South, Ogun State",
+            ministry=ministry,
+            department="Secondary Education",
+            salary_amount=Decimal("142500"),
+            bank_code=None,
+            bank_account_number=None,
+            bank_account_name=None,
+            device_id=f"verified-device-{batch_id.lower()}-adebayo",
+            gps_lat=Decimal("7.1557"),
+            gps_lng=Decimal("3.3451"),
+            registration_ip="10.44.18.34",
+            registration_timestamp=base_time + timedelta(minutes=45),
+        ),
+        _verified_worker_record(
+            worker_code=f"EDU-{batch_id}-V0003",
+            full_name="Kemi Adeyemi",
+            bvn="22800000003",
+            phone="08030000003",
+            email="kemi.adeyemi@ogunstate.gov.ng",
+            date_of_birth="1988-11-03",
+            gender="2",
+            address="Ijebu Ode, Ogun State",
+            ministry=ministry,
+            department="Primary Education",
+            salary_amount=Decimal("128000"),
+            bank_code=None,
+            bank_account_number=None,
+            bank_account_name=None,
+            device_id=f"verified-device-{batch_id.lower()}-kemi",
+            gps_lat=Decimal("6.8194"),
+            gps_lng=Decimal("3.9173"),
+            registration_ip="10.44.21.19",
+            registration_timestamp=base_time + timedelta(minutes=72),
+        ),
+    ]
+    return [record for record in records if record["bvn"] and record["phone"]]
+
+
+def _verified_worker_record(
+    *,
+    worker_code: str,
+    full_name: str,
+    bvn: str | None,
+    phone: str | None,
+    email: str | None,
+    date_of_birth: str | None,
+    gender: str,
+    address: str,
+    ministry: str,
+    department: str,
+    salary_amount: Decimal,
+    bank_code: str | None,
+    bank_account_number: str | None,
+    bank_account_name: str | None,
+    device_id: str,
+    gps_lat: Decimal,
+    gps_lng: Decimal,
+    registration_ip: str,
+    registration_timestamp: datetime,
+) -> dict:
+    appointment_date = "2014-09-15"
+    return {
+        "worker_code": worker_code,
+        "full_name": full_name,
+        "bvn": bvn,
+        "phone": phone,
+        "email": email,
+        "date_of_birth": date_of_birth,
+        "gender": gender,
+        "address": address,
+        "ministry": ministry,
+        "department": department,
+        "salary_amount": salary_amount,
+        "bank_code": bank_code,
+        "bank_account_number": bank_account_number,
+        "bank_account_name": bank_account_name,
+        "device_id": device_id,
+        "gps_lat": gps_lat,
+        "gps_lng": gps_lng,
+        "registration_ip": registration_ip,
+        "registration_timestamp": registration_timestamp,
+        "virtual_account_number": None,
+        "risk_metadata": {
+            "source": "seeded_ogun_staff_file",
+            "demo_verifiable": True,
+            "is_injected_ghost": False,
+            "ghost_cluster": None,
+            "preverified_evidence": {
+                "liveness": {"status": "PASSED", "confidence": 0.97, "attempts": 1},
+                "deepfake": {
+                    "status": "CLEAN",
+                    "synthetic_probability": 0.01,
+                    "model_name": "model-backed-inference",
+                },
+                "face_match": {"status": "MATCH", "similarity": 0.98},
+            },
+            "document_profile": {
+                "payroll_dob": date_of_birth,
+                "bvn_dob": date_of_birth,
+                "file_dob": date_of_birth,
+                "appointment_date": appointment_date,
+                "first_salary_date": "2014-10-25",
+                "confirmation_date": "2016-09-15",
+                "last_promotion_date": "2023-01-01",
+                "retirement_date": "2050-12-31",
+                "document_numbers": {
+                    "appointment_letter": f"OG/MOE/{worker_code[-5:]}",
+                    "bvn": bvn,
+                    "staff_id": worker_code,
+                },
+                "required_documents": [
+                    "appointment_letter",
+                    "birth_certificate",
+                    "promotion_letter",
+                    "staff_id_card",
+                ],
+                "submitted_documents": [
+                    "appointment_letter",
+                    "birth_certificate",
+                    "promotion_letter",
+                    "staff_id_card",
+                ],
+            },
+        },
+    }
+
+
 def _normal_worker_record(
     *,
     rng: np.random.Generator,

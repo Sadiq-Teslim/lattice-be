@@ -6,7 +6,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.ai.anomaly import PayrollAnomalyDetector, evaluate_anomaly_results
-from app.ai.synthetic_data import SyntheticPayrollConfig, generate_synthetic_payroll
+from app.ai.synthetic_data import (
+    SyntheticPayrollConfig,
+    generate_synthetic_payroll,
+    inject_verified_ogun_records,
+)
+from app.core.config import settings
 from app.db.models import PayCycle, Worker
 from app.db.session import get_db
 from app.schemas.demo import (
@@ -39,6 +44,17 @@ def seed_demo_payroll(payload: DemoSeedRequest, db: Session = db_session) -> Dem
         batch_id=batch_id,
     )
     frame = generate_synthetic_payroll(config)
+    frame = inject_verified_ogun_records(
+        frame,
+        batch_id=batch_id,
+        ministry=ministry,
+        teslim_bvn=settings.demo_teslim_bvn,
+        teslim_bank_code=settings.demo_teslim_bank_code,
+        teslim_account_number=settings.demo_teslim_account_number,
+        teslim_phone=settings.demo_teslim_phone,
+        teslim_email=settings.demo_teslim_email,
+        teslim_dob=settings.demo_teslim_dob,
+    )
 
     pay_cycle = PayCycle(
         name=f"May 2026 Payroll Demo {batch_id}",

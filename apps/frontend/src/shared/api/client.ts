@@ -5,6 +5,7 @@ import type {
   DemoSeedResponse,
   DocumentConsistencyResponse,
   LivenessEvaluationResponse,
+  SquadAccountLookupResponse,
   VerificationFinalizeResponse,
   VerificationSession,
   VerifyAndDisburseResponse,
@@ -69,11 +70,23 @@ export const latticeApi = {
       }),
     }),
 
-  listWorkers: (ministry: string) =>
-    request<Worker[]>(`/workers?ministry=${encodeURIComponent(ministry)}&limit=100`),
+  listWorkers: async (ministry: string) => {
+    const workers = await request<Worker[]>(`/workers?ministry=${encodeURIComponent(ministry)}&limit=100`);
+    return workers.sort((left, right) => {
+      const leftRank = left.risk_metadata?.demo_verifiable ? 0 : 1;
+      const rightRank = right.risk_metadata?.demo_verifiable ? 0 : 1;
+      return leftRank - rightRank || left.worker_code.localeCompare(right.worker_code);
+    });
+  },
 
   scanAnomalies: (payCycleId: string) =>
     request<AnomalyScanResponse>(`/demo/anomalies?pay_cycle_id=${encodeURIComponent(payCycleId)}`),
+
+  accountLookup: (payload: { bank_code: string; account_number: string }) =>
+    request<SquadAccountLookupResponse>("/squad/account-lookup", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 
   evaluateDocumentConsistency: (worker: Worker, overrides: Partial<{
     payroll_dob: string;
@@ -102,6 +115,7 @@ export const latticeApi = {
           },
           required_documents: [],
           submitted_documents: [],
+          ...documentProfile(worker),
           ...overrides,
         },
         cohort_records: [],
@@ -182,4 +196,10 @@ function isoDate(value?: string | null) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString().slice(0, 10);
+}
+
+function documentProfile(worker: Worker) {
+  const profile = worker.risk_metadata?.document_profile;
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) return {};
+  return profile as Record<string, unknown>;
 }

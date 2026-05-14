@@ -4,6 +4,8 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .env
+*.log
+local-lattice.db
 .runtime/
 models/
 .DS_Store

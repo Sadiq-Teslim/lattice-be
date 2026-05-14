@@ -221,13 +221,10 @@ export function DashboardPage() {
     if (!seed) return;
     const result = await runAction(`verify-${worker.id}`, async () => {
       const documents = await latticeApi.evaluateDocumentConsistency(worker);
+      const evidence = await buildVerificationEvidence(worker, documents);
       const viqResult = await latticeApi.verifyAndDisburse(worker.id, seed.pay_cycle_id, {
-        documents: {
-          status: documents.status,
-          severity: documents.severity,
-          flags: documents.flags,
-          summary: documents.summary,
-        },
+        ...evidence,
+        documents: documentEvidence(documents),
       });
       return { documents, viqResult };
     });
@@ -236,6 +233,44 @@ export function DashboardPage() {
       setViqs((current) => ({ ...current, [worker.id]: result.viqResult.viq }));
       setSelectedWorker(worker);
     }
+  }
+
+  async function buildVerificationEvidence(worker: Worker, documents: DocumentConsistencyResponse) {
+    const metadata = worker.risk_metadata ?? {};
+    const preverified = objectValue(metadata.preverified_evidence);
+    const evidence: Record<string, Record<string, unknown>> = {
+      ...(preverified ?? {}),
+    };
+
+    if (worker.bank_code && worker.bank_account_number) {
+      const lookup = await latticeApi.accountLookup({
+        bank_code: worker.bank_code,
+        account_number: worker.bank_account_number,
+      });
+      const accountName = String(lookup.response.data?.account_name ?? "");
+      const nameMatches = namesLookRelated(accountName, worker.full_name);
+      evidence.bvn = {
+        status: nameMatches ? "BVN_MATCH" : "BVN_MISMATCH",
+        provider: "SQUAD",
+        provider_reference: "account_lookup",
+        resolved_name: accountName,
+        matched_name: worker.full_name,
+        captured_at: new Date().toISOString(),
+      };
+      evidence.financial_account = {
+        status: nameMatches ? "ACCOUNT_MATCH" : "ACCOUNT_MISMATCH",
+        provider: "SQUAD",
+        bank_code: worker.bank_code,
+        account_number: maskAccount(worker.bank_account_number),
+        resolved_name: accountName,
+      };
+    }
+
+    if (documents.status === "DOCUMENT_INCONSISTENCY") {
+      evidence.documents = documentEvidence(documents);
+    }
+
+    return evidence;
   }
 
   async function verifyAllEligible() {
@@ -1007,4 +1042,38 @@ function formatMoney(value: number) {
 
 function humanizeStatus(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function documentEvidence(documents: DocumentConsistencyResponse) {
+  return {
+    status: documents.status,
+    severity: documents.severity,
+    flags: documents.flags,
+    summary: documents.summary,
+  };
+}
+
+function objectValue(value: unknown): Record<string, Record<string, unknown>> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, Record<string, unknown>>;
+}
+
+function namesLookRelated(left: string, right: string) {
+  const leftTokens = nameTokens(left);
+  const rightTokens = nameTokens(right);
+  if (!leftTokens.length || !rightTokens.length) return false;
+  const overlap = rightTokens.filter((token) => leftTokens.includes(token)).length;
+  return overlap >= Math.min(2, rightTokens.length);
+}
+
+function nameTokens(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, " ")
+    .split(/\s+/)
+    .filter((token) => token.length > 1);
+}
+
+function maskAccount(value: string) {
+  return value.length <= 4 ? "****" : `${"*".repeat(Math.max(0, value.length - 4))}${value.slice(-4)}`;
 }

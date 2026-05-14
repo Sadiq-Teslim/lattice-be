@@ -121,6 +121,19 @@ export type VerifyAndDisburseResponse = {
   payment_blocked_reason: string | null;
 };
 
+export type SquadAccountLookupResponse = {
+  response: {
+    success?: boolean;
+    message?: string;
+    data?: {
+      account_name?: string;
+      account_number?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
+};
+
 export type JobResponse = {
   id: string;
   kind: string;

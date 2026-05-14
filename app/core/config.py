@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     face_match_threshold: float = 0.92
     otp_ttl_seconds: int = 90
 
+    demo_teslim_bvn: str | None = None
+    demo_teslim_bank_code: str = "000014"
+    demo_teslim_account_number: str | None = None
+    demo_teslim_phone: str = "08000000000"
+    demo_teslim_email: str = "teslim.sadiq@example.com"
+    demo_teslim_dob: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
