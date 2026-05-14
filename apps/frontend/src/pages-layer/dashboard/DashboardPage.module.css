@@ -1,22 +1,95 @@
 .shell {
   display: flex;
   min-height: 100vh;
+  background: var(--color-bg);
 }
 
 .main {
   display: grid;
   flex: 1;
   align-content: start;
-  gap: var(--space-lg);
+  gap: var(--space-md);
   min-width: 0;
-  padding: var(--space-xl);
+  padding: var(--space-lg);
 }
 
-.header {
+.topbar,
+.header,
+.sectionHead,
+.tableHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-lg);
+  gap: var(--space-md);
+}
+
+.topbar {
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: var(--space-md);
+  box-shadow: var(--shadow-1);
+}
+
+.searchBox,
+.search {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: white;
+  color: var(--color-text-secondary);
+  padding: 0 var(--space-md);
+}
+
+.searchBox {
+  width: min(520px, 100%);
+}
+
+.searchBox input,
+.search input {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  outline: 0;
+}
+
+.operator {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.operator img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+.operator div,
+.titleBlock div {
+  display: grid;
+  gap: 2px;
+}
+
+.operator span,
+.titleBlock span,
+.header p,
+.sectionHead p,
+.latticeGate p,
+.summaryCard p,
+.greenHero p,
+.capabilityCard p,
+.reportCard p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.header {
+  border-radius: 24px;
+  background: white;
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-1);
 }
 
 .titleBlock {
@@ -25,40 +98,35 @@
   gap: var(--space-md);
 }
 
-.seal {
-  display: grid;
-  width: 56px;
-  height: 56px;
-  flex: 0 0 auto;
-  place-items: center;
-  border: 2px solid var(--color-brand);
-  border-radius: 50%;
-  color: var(--color-brand);
-  font-weight: 900;
-  letter-spacing: 0.02em;
+.titleBlock img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
 }
 
 .header p {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.header h1 {
-  margin: 0;
-  font-size: 22px;
-}
-
-.titleBlock span {
-  color: var(--color-text-secondary);
   font-size: 14px;
   font-weight: 700;
 }
 
+.header h1,
+.sectionHead h2,
+.formCard h2,
+.capabilityCard h2,
+.reportCard h2,
+.latticeGate h2,
+.summaryCard strong {
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.header h1 {
+  font-size: 28px;
+  line-height: 1.15;
+}
+
 .actions,
 .panelActions,
-.tableHeader,
 .tabs {
   display: flex;
   align-items: center;
@@ -74,36 +142,79 @@
   font-weight: 700;
 }
 
-.controlGrid {
+.heroGrid {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
   gap: var(--space-md);
 }
 
-.commandStrip {
+.greenHero,
+.summaryCard {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+  align-content: space-between;
+  gap: var(--space-md);
+  min-height: 220px;
+  padding: var(--space-xl);
+}
+
+.greenHero {
+  background:
+    linear-gradient(135deg, rgba(6, 78, 42, 0.95), rgba(15, 122, 61, 0.9)),
+    var(--color-brand);
+  color: white;
+}
+
+.greenHero span,
+.greenHero p {
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.greenHero strong {
+  font-size: 48px;
+  line-height: 1;
+}
+
+.summaryCard strong {
+  font-size: 28px;
+}
+
+.commandStrip,
+.exerciseGrid,
+.settingsGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
   gap: var(--space-md);
 }
 
-.batchCard {
+.batchCard,
+.payrollHeader {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-md);
   padding: var(--space-lg);
 }
 
-.batchCard div {
+.payrollHeader {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: white;
+  box-shadow: var(--shadow-1);
+}
+
+.metric {
   display: grid;
   gap: var(--space-xs);
 }
 
+.metric span,
 .batchCard span {
   color: var(--color-text-secondary);
   font-size: 14px;
   font-weight: 700;
 }
 
+.metric strong,
 .batchCard strong {
   font-size: 18px;
 }
@@ -122,41 +233,91 @@
   height: 48px;
   place-items: center;
   border-radius: var(--radius-button);
-  background: var(--color-danger-bg);
+  background: #ecfdf3;
   color: var(--color-brand);
 }
 
-.latticeGate h2 {
-  margin: 0 0 var(--space-xs);
-  font-size: 18px;
+.pageStack {
+  display: grid;
+  gap: var(--space-md);
 }
 
-.latticeGate p {
-  margin: 0;
+.sectionHead {
+  border-radius: var(--radius-card);
+  background: white;
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-1);
+}
+
+.tableHeader {
+  align-items: stretch;
+}
+
+.tabs {
+  flex-wrap: wrap;
+}
+
+.tabs button,
+.checkGrid button {
+  min-height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  background: white;
   color: var(--color-text-secondary);
+  padding: 0 var(--space-md);
+  font-weight: 800;
+  cursor: pointer;
 }
 
-.panel {
+.tabs .activeTab,
+.checkGrid .checkActive {
+  border-color: var(--color-brand);
+  background: var(--color-brand);
+  color: white;
+}
+
+.search {
+  min-width: 280px;
+}
+
+.formCard,
+.capabilityCard,
+.reportCard {
   display: grid;
   gap: var(--space-md);
   padding: var(--space-lg);
 }
 
-.panel h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.panel p {
-  margin: 0;
+.formCard label {
+  display: grid;
+  gap: var(--space-xs);
   color: var(--color-text-secondary);
+  font-weight: 700;
 }
 
+.formCard input,
+.formCard select {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: white;
+  color: var(--color-text-primary);
+  padding: 0 var(--space-md);
+}
+
+.checkGrid,
+.cardGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.docList,
 .rules {
   display: grid;
   gap: var(--space-sm);
 }
 
+.docList span,
 .rules span {
   display: flex;
   align-items: center;
@@ -165,76 +326,81 @@
   font-weight: 700;
 }
 
-.meta {
-  color: var(--color-text-secondary);
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.tableSection {
+.generatedLink {
   display: grid;
-  gap: var(--space-md);
-}
-
-.tableHeader {
-  justify-content: space-between;
-}
-
-.tabs {
-  flex-wrap: wrap;
-}
-
-.tabs button {
-  min-height: 40px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-pill);
-  background: white;
-  color: var(--color-text-secondary);
-  padding: 0 var(--space-md);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.tabs .activeTab {
-  border-color: var(--color-brand);
-  background: var(--color-brand);
-  color: white;
-}
-
-.search {
-  display: flex;
-  min-width: 280px;
-  align-items: center;
   gap: var(--space-sm);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-button);
+  border-radius: var(--radius-card);
+  background: #ecfdf3;
+  padding: var(--space-md);
+}
+
+.generatedLink span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.generatedLink strong {
+  overflow-wrap: anywhere;
+}
+
+.tableWrap {
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
   background: white;
-  padding: 0 var(--space-md);
+  box-shadow: var(--shadow-1);
 }
 
-.search input {
+.simpleTable {
   width: 100%;
-  border: 0;
-  outline: 0;
+  min-width: 900px;
+  border-collapse: collapse;
 }
 
-@media (max-width: 900px) {
-  .main {
-    padding: var(--space-md);
+.simpleTable th,
+.simpleTable td {
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md);
+  text-align: left;
+  vertical-align: top;
+}
+
+.simpleTable th {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+@media (max-width: 1100px) {
+  .heroGrid,
+  .commandStrip,
+  .exerciseGrid,
+  .settingsGrid,
+  .checkGrid,
+  .cardGrid,
+  .batchCard,
+  .payrollHeader {
+    grid-template-columns: 1fr;
   }
 
   .header,
+  .topbar,
+  .sectionHead,
   .tableHeader {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .actions,
-  .controlGrid,
-  .commandStrip,
-  .batchCard {
+  .actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 900px) {
+  .main {
+    padding: var(--space-md);
   }
 
   .search {

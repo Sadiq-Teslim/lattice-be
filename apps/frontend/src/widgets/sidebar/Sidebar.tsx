@@ -1,27 +1,62 @@
-import { AlertTriangle, Banknote, FileText, LayoutDashboard, ShieldCheck, Users } from "lucide-react";
+import {
+  Banknote,
+  ClipboardCheck,
+  FileArchive,
+  FileText,
+  LayoutDashboard,
+  Settings,
+  ShieldCheck,
+  UploadCloud,
+  Users,
+} from "lucide-react";
 import styles from "./Sidebar.module.css";
 
-const items = [
-  { label: "Payroll Run", icon: LayoutDashboard, active: true },
-  { label: "Nominal Roll", icon: Users },
-  { label: "Lattice Gate", icon: ShieldCheck },
-  { label: "Exceptions", icon: AlertTriangle },
-  { label: "Disbursement", icon: Banknote },
-  { label: "Audit Log", icon: FileText },
+export type ConsolePage =
+  | "dashboard"
+  | "staff"
+  | "payroll"
+  | "exercises"
+  | "checks"
+  | "submissions"
+  | "disbursements"
+  | "documents"
+  | "reports"
+  | "settings";
+
+const items: Array<{ key: ConsolePage; label: string; icon: typeof LayoutDashboard }> = [
+  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { key: "staff", label: "Staff Records", icon: Users },
+  { key: "payroll", label: "Payroll", icon: Banknote },
+  { key: "exercises", label: "Verification Exercises", icon: ClipboardCheck },
+  { key: "checks", label: "Lattice Checks", icon: ShieldCheck },
+  { key: "submissions", label: "Submissions", icon: UploadCloud },
+  { key: "disbursements", label: "Disbursements", icon: Banknote },
+  { key: "documents", label: "Documents", icon: FileArchive },
+  { key: "reports", label: "Reports & Audit", icon: FileText },
+  { key: "settings", label: "Settings", icon: Settings },
 ];
 
-export function Sidebar() {
+type SidebarProps = {
+  activePage: ConsolePage;
+  onNavigate: (page: ConsolePage) => void;
+};
+
+export function Sidebar({ activePage, onNavigate }: SidebarProps) {
   return (
     <aside className={styles.sidebar}>
       <div className={styles.logo}>
-        <div className={styles.seal}>OG</div>
+        <img alt="Ogun State Government" src="/ogun-logo.png" />
         <span>Ogun Payroll</span>
       </div>
       <nav className={styles.nav}>
         {items.map((item) => {
           const Icon = item.icon;
           return (
-            <button className={`${styles.navItem} ${item.active ? styles.active : ""}`} key={item.label}>
+            <button
+              className={`${styles.navItem} ${activePage === item.key ? styles.active : ""}`}
+              key={item.key}
+              onClick={() => onNavigate(item.key)}
+            >
               <Icon size={20} strokeWidth={1.5} />
               <span>{item.label}</span>
             </button>

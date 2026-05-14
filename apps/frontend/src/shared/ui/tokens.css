@@ -1,9 +1,9 @@
 :root {
-  --color-bg: #f7f7f7;
+  --color-bg: #f4f7f2;
   --color-surface: #ffffff;
-  --color-border: #e5e7eb;
-  --color-brand: #e8001c;
-  --color-brand-dark: #b80016;
+  --color-border: #e2e8e0;
+  --color-brand: #0f7a3d;
+  --color-brand-dark: #064e2a;
   --color-text-primary: #0d0d0d;
   --color-text-secondary: #6b7280;
   --color-text-disabled: #9ca3af;
@@ -13,7 +13,7 @@
   --color-warning-bg: #fef3c7;
   --color-danger: #dc2626;
   --color-danger-bg: #fee2e2;
-  --color-neutral: #e8001c;
+  --color-neutral: #0f7a3d;
   --radius-card: 12px;
   --radius-button: 8px;
   --radius-pill: 999px;

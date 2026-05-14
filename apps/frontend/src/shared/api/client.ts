@@ -17,6 +17,8 @@ type RequestOptions = RequestInit & {
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 25000);
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.body && !headers.has("Content-Type")) {
@@ -26,22 +28,32 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set("X-Lattice-API-Key", env.latticeApiKey);
   }
 
-  const response = await fetch(`${env.apiUrl}${path}`, {
-    ...options,
-    headers,
-    cache: "no-store",
-  });
+  try {
+    const response = await fetch(`${env.apiUrl}${path}`, {
+      ...options,
+      headers,
+      cache: "no-store",
+      signal: options.signal ?? controller.signal,
+    });
 
-  const text = await response.text();
-  const payload = text ? JSON.parse(text) : null;
-  if (!response.ok) {
-    throw new Error(
-      typeof payload?.detail === "string"
-        ? payload.detail
-        : payload?.detail?.message || `Request failed with ${response.status}`,
-    );
+    const text = await response.text();
+    const payload = text ? JSON.parse(text) : null;
+    if (!response.ok) {
+      throw new Error(
+        typeof payload?.detail === "string"
+          ? payload.detail
+          : payload?.detail?.message || `Request failed with ${response.status}`,
+      );
+    }
+    return payload as T;
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("The Lattice API is taking too long to respond. Please retry.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return payload as T;
 }
 
 export const latticeApi = {

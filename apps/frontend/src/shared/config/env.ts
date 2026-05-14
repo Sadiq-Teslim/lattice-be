@@ -1,4 +1,13 @@
+const productionApiUrl = "https://lattice-be.onrender.com/api/v1";
+
+function defaultApiUrl() {
+  if (typeof window === "undefined") return productionApiUrl;
+  return ["localhost", "127.0.0.1"].includes(window.location.hostname)
+    ? "http://127.0.0.1:8010/api/v1"
+    : productionApiUrl;
+}
+
 export const env = {
-  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? "https://lattice-be.onrender.com/api/v1",
+  apiUrl: process.env.NEXT_PUBLIC_API_URL ?? defaultApiUrl(),
   latticeApiKey: process.env.NEXT_PUBLIC_LATTICE_API_KEY ?? "lt_live_235679",
 };

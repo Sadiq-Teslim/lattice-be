@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Camera, CheckCircle, FileCheck2, Shield, Smartphone, UploadCloud, WifiOff } from "lucide-react";
+import { Camera, CheckCircle, FileCheck2, Smartphone, UploadCloud, WifiOff } from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
 import type {
   DocumentConsistencyResponse,
@@ -175,7 +175,7 @@ export function WorkerVerifyPage() {
     return (
       <main className={styles.shell}>
         <Card className={styles.centerCard}>
-          <Shield size={40} strokeWidth={1.5} />
+          <img alt="Ogun State Government" className={styles.centerLogo} src="/ogun-logo.png" />
           <h1>Preparing verification</h1>
           <p>Connecting to Ogun State Ministry payroll records.</p>
           {error ? (
@@ -215,8 +215,11 @@ export function WorkerVerifyPage() {
     <main className={styles.shell}>
       <section className={styles.phone}>
         <header className={styles.brand}>
-          <Shield size={28} strokeWidth={1.5} />
-          <strong>Lattice</strong>
+          <img alt="Ogun State Government" src="/ogun-logo.png" />
+          <div>
+            <strong>Ogun Staff Verification</strong>
+            <span>Powered by Lattice</span>
+          </div>
         </header>
 
         {offline ? (
