@@ -10,6 +10,7 @@ from app.schemas.squad import (
     InitiateVIQTransferResponse,
     SquadResponse,
 )
+from app.services.identity import normalize_dob, split_name
 from app.services.payments import PaymentService
 from app.services.squad import (
     SquadAPIError,
@@ -43,7 +44,13 @@ def create_worker_virtual_account(
     if worker is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="worker not found")
 
-    first_name, last_name, middle_name = _split_name(worker.full_name)
+    try:
+        first_name, last_name, middle_name = split_name(worker.full_name)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
     email = payload.email or worker.email
     dob = payload.dob or worker.date_of_birth
     gender = payload.gender or worker.gender
@@ -73,7 +80,7 @@ def create_worker_virtual_account(
             mobile_num=worker.phone,
             email=str(email),
             bvn=worker.bvn,
-            dob=str(dob),
+            dob=normalize_dob(str(dob)),
             gender=str(gender),
             address=str(address),
             beneficiary_account=payload.beneficiary_account,
@@ -124,16 +131,3 @@ def initiate_viq_transfer(
         payment_status=viq.payment_status,
         squad_response=squad_response,
     )
-
-
-def _split_name(full_name: str) -> tuple[str, str, str | None]:
-    parts = full_name.strip().split()
-    if len(parts) < 2:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="worker full_name must include at least first and last name",
-        )
-    first_name = parts[0]
-    last_name = parts[-1]
-    middle_name = " ".join(parts[1:-1]) or None
-    return first_name, last_name, middle_name

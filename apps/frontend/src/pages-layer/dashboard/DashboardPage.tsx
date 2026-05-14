@@ -249,14 +249,6 @@ export function DashboardPage() {
       });
       const accountName = String(lookup.response.data?.account_name ?? "");
       const nameMatches = namesLookRelated(accountName, worker.full_name);
-      evidence.bvn = {
-        status: nameMatches ? "BVN_MATCH" : "BVN_MISMATCH",
-        provider: "SQUAD",
-        provider_reference: "account_lookup",
-        resolved_name: accountName,
-        matched_name: worker.full_name,
-        captured_at: new Date().toISOString(),
-      };
       evidence.financial_account = {
         status: nameMatches ? "ACCOUNT_MATCH" : "ACCOUNT_MISMATCH",
         provider: "SQUAD",

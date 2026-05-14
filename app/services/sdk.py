@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.scoring import PASS
 from app.db.models import PayCycle, Worker
 from app.schemas.sdk import VerifyAndDisburseRequest
+from app.services.identity import SquadIdentityVerifier
 from app.services.payments import PaymentService
 from app.services.verification_orchestrator import VerificationOrchestrator
 
@@ -18,9 +19,14 @@ class SDKService:
 
         orchestrator = VerificationOrchestrator(self.db)
         session = orchestrator.create_session(worker_id=worker.id, pay_cycle_id=pay_cycle.id)
+        evidence = payload.evidence.model_dump(exclude_none=True)
+        if "bvn" not in evidence:
+            bvn_evidence = SquadIdentityVerifier(self.db).verify_worker_bvn(worker)
+            if bvn_evidence is not None:
+                evidence["bvn"] = bvn_evidence
         orchestrator.submit_evidence(
             session_id=session.id,
-            evidence=payload.evidence.model_dump(exclude_none=True),
+            evidence=evidence,
         )
         _, viq = orchestrator.finalize_session(session_id=session.id)
 
