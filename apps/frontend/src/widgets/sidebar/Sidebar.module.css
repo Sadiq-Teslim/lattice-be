@@ -10,14 +10,19 @@
   background: var(--color-surface);
   padding: var(--space-md);
   transition: width 180ms ease;
+  overflow: hidden;
 }
 
 .collapsed {
-  width: 88px;
+  width: 96px;
 }
 
 .logo {
   min-height: 48px;
+}
+
+.brandMark {
+  min-width: 0;
 }
 
 .logo img {
@@ -32,8 +37,7 @@
 
 .nav {
   align-content: start;
-  overflow: hidden auto;
-  padding-right: 2px;
+  overflow: visible;
 }
 
 .navRoot {
@@ -67,17 +71,40 @@
   white-space: nowrap;
 }
 
-.collapsed .navRoot {
-  justify-content: center;
-  padding-inline: 0;
-}
-
-.collapsed .navSection {
-  margin-inline: 0;
-}
-
-.tooltipTarget {
+.iconNavItem {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  place-items: center;
   border-radius: 12px;
+  color: var(--color-text-secondary);
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    transform 100ms ease;
+}
+
+.iconNavItem:hover {
+  background: #ecfdf3;
+  color: var(--color-brand);
+}
+
+.iconNavItem:active {
+  transform: scale(0.97);
+}
+
+.iconNavItemActive {
+  background: var(--color-brand);
+  color: white;
+}
+
+.iconNavItemActive:hover {
+  background: var(--color-brand);
+  color: white;
+}
+
+.collapsed .nav {
+  align-items: center;
 }
 
 .ministry {
@@ -116,10 +143,15 @@
     flex: 0 0 auto;
   }
 
-  .collapsed .navRoot,
+  .collapsed .iconNavItem,
   .navRoot {
     min-width: 48px;
     padding-inline: 12px;
+  }
+
+  .collapsed .iconNavItem {
+    width: 48px;
+    height: 48px;
   }
 
   .ministry {

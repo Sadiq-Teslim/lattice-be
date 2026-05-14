@@ -10,6 +10,7 @@ import {
   Stack,
   Text,
   Tooltip,
+  UnstyledButton,
 } from "@mantine/core";
 import {
   Banknote,
@@ -57,7 +58,7 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.collapsed : ""}`}>
       <Group className={styles.logo} gap="sm" justify={collapsed ? "center" : "space-between"} wrap="nowrap">
-        <Group gap="sm" wrap="nowrap">
+        <Group className={styles.brandMark} gap="sm" wrap="nowrap">
           <img alt="Ogun State Government" src="/ogun-logo.png" />
           {!collapsed ? <Text fw={900}>Ogun Payroll</Text> : null}
         </Group>
@@ -77,29 +78,36 @@ export function Sidebar({ activePage, onNavigate }: SidebarProps) {
         {items.map((item) => {
           const Icon = item.icon;
           const active = activePage === item.key;
-          const nav = (
-            <NavLink
-              active={active}
-              className={styles.navItem}
-              classNames={{
-                body: styles.navBody,
-                label: styles.navLabel,
-                root: styles.navRoot,
-                section: styles.navSection,
-              }}
-              color="green"
-              label={collapsed ? "" : item.label}
-              leftSection={<Icon size={20} strokeWidth={1.7} />}
-              onClick={() => onNavigate(item.key)}
-              variant="filled"
-            />
-          );
-          return collapsed ? (
+          if (collapsed) {
+            return (
             <Tooltip key={item.key} label={item.label} openDelay={120} position="right" withArrow>
-              <Box className={styles.tooltipTarget}>{nav}</Box>
+              <UnstyledButton
+                aria-label={item.label}
+                className={`${styles.iconNavItem} ${active ? styles.iconNavItemActive : ""}`}
+                onClick={() => onNavigate(item.key)}
+              >
+                <Icon size={22} strokeWidth={1.7} />
+              </UnstyledButton>
             </Tooltip>
-          ) : (
-            <Box key={item.key}>{nav}</Box>
+            );
+          }
+          return (
+            <Box key={item.key}>
+              <NavLink
+                active={active}
+                classNames={{
+                  body: styles.navBody,
+                  label: styles.navLabel,
+                  root: styles.navRoot,
+                  section: styles.navSection,
+                }}
+                color="green"
+                label={item.label}
+                leftSection={<Icon size={20} strokeWidth={1.7} />}
+                onClick={() => onNavigate(item.key)}
+                variant="filled"
+              />
+            </Box>
           );
         })}
       </Stack>
