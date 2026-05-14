@@ -343,7 +343,6 @@
 
 .exerciseCardHeader,
 .exerciseCardActions,
-.drawerHeader,
 .drawerFooter {
   display: flex;
   align-items: center;
@@ -355,13 +354,11 @@
   align-items: flex-start;
 }
 
-.exerciseCardHeader h2,
-.drawerHeader h2 {
+.exerciseCardHeader h2 {
   margin: var(--space-xs) 0 0;
 }
 
-.exerciseCardHeader p,
-.drawerHeader span {
+.exerciseCardHeader p {
   margin: var(--space-xs) 0 0;
   color: var(--color-text-secondary);
 }
@@ -463,8 +460,7 @@
   text-decoration: underline;
 }
 
-.linkButton,
-.iconButton {
+.linkButton {
   display: inline-flex;
   min-height: 40px;
   align-items: center;
@@ -480,49 +476,58 @@
   cursor: pointer;
 }
 
-.iconButton {
-  width: 44px;
-  min-width: 44px;
-  border-color: var(--color-border);
-  color: var(--color-text-primary);
-  padding: 0;
+.mantineDrawerContent {
+  background: var(--color-bg);
 }
 
-.drawerOverlay {
-  position: fixed;
-  inset: 0;
-  z-index: 50;
-  display: flex;
-  justify-content: flex-end;
-  background: rgba(15, 23, 42, 0.28);
-}
-
-.exerciseDrawer {
-  display: grid;
-  width: min(720px, 100%);
-  max-height: 100vh;
-  gap: var(--space-md);
-  overflow: auto;
+.mantineDrawerHeader {
+  border-bottom: 1px solid var(--color-border);
   background: var(--color-bg);
   padding: var(--space-lg);
-  box-shadow: var(--shadow-2);
 }
 
-.drawerHeader,
+.mantineDrawerBody {
+  padding: var(--space-lg);
+}
+
+.mantineDrawerTitle {
+  flex: 1;
+}
+
+.mantineDrawerClose {
+  color: var(--color-text-primary);
+}
+
+.drawerTitle h2,
+.drawerTitle span {
+  margin: 0;
+}
+
+.drawerTitle span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.drawerTitle h2 {
+  margin-top: var(--space-xs);
+  color: var(--color-text-primary);
+  font-size: 24px;
+  line-height: 1.15;
+}
+
+.exerciseDrawerBody {
+  display: grid;
+  gap: var(--space-md);
+}
+
 .drawerFooter {
   position: sticky;
+  bottom: calc(var(--space-lg) * -1);
   z-index: 1;
+  border-top: 1px solid var(--color-border);
   background: var(--color-bg);
-}
-
-.drawerHeader {
-  top: 0;
-  padding-bottom: var(--space-sm);
-}
-
-.drawerFooter {
-  bottom: 0;
-  padding-top: var(--space-sm);
+  padding: var(--space-md) 0 0;
 }
 
 .tableWrap {
@@ -652,7 +657,8 @@
     padding: var(--space-md);
   }
 
-  .exerciseDrawer {
+  .mantineDrawerHeader,
+  .mantineDrawerBody {
     padding: var(--space-md);
   }
 

@@ -14,8 +14,8 @@ import {
   Search,
   Shield,
   Settings2,
-  X,
 } from "lucide-react";
+import { Drawer } from "@mantine/core";
 import { latticeApi } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
 import type {
@@ -1072,20 +1072,31 @@ function ExercisesView({
         </Card>
       )}
 
-      {isDrawerOpen ? (
-        <div className={styles.drawerOverlay} role="presentation">
-          <aside className={styles.exerciseDrawer} aria-label="Verification exercise setup">
-            <div className={styles.drawerHeader}>
-              <div>
-                <span>{editingExercise ? "Edit verification exercise" : "New verification exercise"}</span>
-                <h2>{exerciseName || "Verification exercise"}</h2>
-              </div>
-              <button aria-label="Close drawer" className={styles.iconButton} onClick={onCloseDrawer} type="button">
-                <X size={22} strokeWidth={1.5} />
-              </button>
-            </div>
-
-            <div className={styles.formCard}>
+      <Drawer
+        opened={isDrawerOpen}
+        onClose={onCloseDrawer}
+        position="right"
+        size="min(720px, 100vw)"
+        title={(
+          <div className={styles.drawerTitle}>
+            <span>{editingExercise ? "Edit verification exercise" : "New verification exercise"}</span>
+            <h2>{exerciseName || "Verification exercise"}</h2>
+          </div>
+        )}
+        classNames={{
+          body: styles.mantineDrawerBody,
+          close: styles.mantineDrawerClose,
+          content: styles.mantineDrawerContent,
+          header: styles.mantineDrawerHeader,
+          title: styles.mantineDrawerTitle,
+        }}
+        overlayProps={{ backgroundOpacity: 0.28, blur: 1 }}
+        radius={0}
+        trapFocus
+        withinPortal
+      >
+        <div className={styles.exerciseDrawerBody}>
+          <Card className={styles.formCard}>
               <label>
                 Exercise name
                 <input value={exerciseName} onChange={(event) => onNameChange(event.target.value)} />
@@ -1099,9 +1110,9 @@ function ExercisesView({
                   <option>Selected departments</option>
                 </select>
               </label>
-            </div>
+          </Card>
 
-            <div className={styles.formCard}>
+          <Card className={styles.formCard}>
               <h2>Documents to collect</h2>
               <div className={styles.checkGrid}>
                 {exerciseDocuments.map((document) => (
@@ -1115,9 +1126,9 @@ function ExercisesView({
                   </button>
                 ))}
               </div>
-            </div>
+          </Card>
 
-            <div className={styles.formCard}>
+          <Card className={styles.formCard}>
               <h2>Verification rules</h2>
               <p>Choose the checks that run when staff submit the verification form.</p>
               <div className={styles.ruleGrid}>
@@ -1133,9 +1144,9 @@ function ExercisesView({
                   </button>
                 ))}
               </div>
-            </div>
+          </Card>
 
-            <div className={styles.generatedLink}>
+          <div className={styles.generatedLink}>
               <span>Publish status</span>
               <strong>{editingExercise?.status ?? "Draft ready"}</strong>
               {editingExercise?.public_url ? (
@@ -1150,19 +1161,18 @@ function ExercisesView({
               ) : (
                 <p>Save and publish to generate the worker-facing link.</p>
               )}
-            </div>
+          </div>
 
-            <div className={styles.drawerFooter}>
+          <div className={styles.drawerFooter}>
               <Button loading={saveLoading} onClick={onSave} variant="secondary">
                 Save Draft
               </Button>
               <Button loading={publishLoading} onClick={onPublish}>
                 Publish Link
               </Button>
-            </div>
-          </aside>
+          </div>
         </div>
-      ) : null}
+      </Drawer>
 
     </section>
   );
