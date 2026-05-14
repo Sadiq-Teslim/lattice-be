@@ -510,6 +510,7 @@ export function DashboardPage() {
 
         {activePage === "dashboard" ? (
           <DashboardView
+            exercises={exercises}
             workers={workers}
             held={held}
             cleared={cleared}
@@ -703,6 +704,7 @@ function PageHeader({
 }
 
 function DashboardView({
+  exercises,
   workers,
   held,
   cleared,
@@ -711,6 +713,7 @@ function DashboardView({
   netEligible,
   onNavigate,
 }: {
+  exercises: VerificationExercise[];
   workers: Worker[];
   held: number;
   cleared: number;
@@ -719,6 +722,8 @@ function DashboardView({
   netEligible: number;
   onNavigate: (page: ConsolePage) => void;
 }) {
+  const publishedExercises = exercises.filter((exercise) => exercise.status === "PUBLISHED").length;
+  const latestExercise = exercises[0];
   return (
     <>
       <section className={styles.heroGrid}>
@@ -730,8 +735,12 @@ function DashboardView({
         </Card>
         <Card className={styles.summaryCard}>
           <span>Verification exercises</span>
-          <strong>Not connected</strong>
-          <p>Exercise creation will appear here after the verification-exercise endpoint is connected.</p>
+          <strong>{exercises.length ? `${exercises.length} configured` : "Ready to create"}</strong>
+          <p>
+            {latestExercise
+              ? `${publishedExercises} published. Latest: ${latestExercise.name}.`
+              : "Create an annual staff verification exercise and publish the worker link."}
+          </p>
           <Button onClick={() => onNavigate("exercises")}>Open Exercises</Button>
         </Card>
       </section>
@@ -917,7 +926,7 @@ function ExercisesView({
           </label>
           <div className={styles.generatedLink}>
             <span>Publish status</span>
-            <strong>{currentExercise?.status ?? "Draft not saved"}</strong>
+            <strong>{currentExercise?.status ?? "Draft ready"}</strong>
             <p>{currentExercise?.public_url ?? "Save and publish to generate a worker-facing link."}</p>
           </div>
           <div className={styles.actions}>
@@ -1022,7 +1031,7 @@ function SubmissionsView({
     return (
       <EmptyState
         title="No staff submissions yet"
-        body="Submissions will appear here after a staff verification session or document check has been completed."
+        body="Worker verification submissions and completed staff checks will be listed here."
       />
     );
   }
@@ -1082,7 +1091,7 @@ function DocumentsView({
     return (
       <EmptyState
         title="No document checks yet"
-        body="Document consistency results will appear here after HR verifies staff records individually or in bulk."
+        body="Run Verify on a staff record to store document consistency results here."
       />
     );
   }
@@ -1141,10 +1150,26 @@ function ReportsView({
 
 function SettingsView() {
   return (
-    <EmptyState
-      title="Settings are not connected yet"
-      body="Ministry profile, thresholds, payment settings, notifications, and admin roles will appear here only after their endpoints exist."
-    />
+    <section className={styles.pageStack}>
+      <Card className={styles.formCard}>
+        <h2>Ministry profile</h2>
+        <p>Ogun State Ministry of Education payroll verification workspace.</p>
+        <div className={styles.profileGrid}>
+          <Metric label="Payroll mode" value="Verification gated" />
+          <Metric label="Worker channel" value="Published exercise links" />
+          <Metric label="Review path" value="HR investigation queue" />
+        </div>
+      </Card>
+      <Card className={styles.formCard}>
+        <h2>Verification policy</h2>
+        <p>Current release rule: only staff with PASS decisions and no investigation flag can be approved for salary release.</p>
+        <div className={styles.profileGrid}>
+          <Metric label="Pass threshold" value="80+" />
+          <Metric label="Review range" value="50-79" />
+          <Metric label="Hard block" value="Failed life/media checks" />
+        </div>
+      </Card>
+    </section>
   );
 }
 
