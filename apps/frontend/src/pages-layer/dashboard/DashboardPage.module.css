@@ -329,6 +329,65 @@
   gap: var(--space-md);
 }
 
+.exerciseCards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.exerciseCard {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.exerciseCardHeader,
+.exerciseCardActions,
+.drawerHeader,
+.drawerFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+
+.exerciseCardHeader {
+  align-items: flex-start;
+}
+
+.exerciseCardHeader h2,
+.drawerHeader h2 {
+  margin: var(--space-xs) 0 0;
+}
+
+.exerciseCardHeader p,
+.drawerHeader span {
+  margin: var(--space-xs) 0 0;
+  color: var(--color-text-secondary);
+}
+
+.statusPill {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 28px;
+  align-items: center;
+  border-radius: var(--radius-pill);
+  background: #ecfdf3;
+  color: var(--color-brand);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.exerciseStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+  border-block: 1px solid var(--color-border);
+  padding-block: var(--space-md);
+}
+
 .ruleGrid button {
   display: grid;
   gap: var(--space-xs);
@@ -387,6 +446,85 @@
   overflow-wrap: anywhere;
 }
 
+.urlText {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--color-brand);
+  font-weight: 800;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.urlText:hover {
+  text-decoration: underline;
+}
+
+.linkButton,
+.iconButton {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-button);
+  background: white;
+  color: var(--color-brand);
+  padding: 0 var(--space-md);
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.iconButton {
+  width: 44px;
+  min-width: 44px;
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+  padding: 0;
+}
+
+.drawerOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 42, 0.28);
+}
+
+.exerciseDrawer {
+  display: grid;
+  width: min(720px, 100%);
+  max-height: 100vh;
+  gap: var(--space-md);
+  overflow: auto;
+  background: var(--color-bg);
+  padding: var(--space-lg);
+  box-shadow: var(--shadow-2);
+}
+
+.drawerHeader,
+.drawerFooter {
+  position: sticky;
+  z-index: 1;
+  background: var(--color-bg);
+}
+
+.drawerHeader {
+  top: 0;
+  padding-bottom: var(--space-sm);
+}
+
+.drawerFooter {
+  bottom: 0;
+  padding-top: var(--space-sm);
+}
+
 .tableWrap {
   overflow: auto;
   border: 1px solid var(--color-border);
@@ -442,6 +580,7 @@
 @media (max-width: 1100px) {
   .heroGrid,
   .exerciseGrid,
+  .exerciseCards,
   .settingsGrid,
   .checkGrid,
   .ruleGrid,
@@ -462,6 +601,18 @@
   .actions {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .exerciseCardHeader,
+  .exerciseCardActions,
+  .drawerFooter {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .exerciseCardActions > *,
+  .drawerFooter > * {
+    width: 100%;
   }
 }
 
@@ -494,10 +645,19 @@
   .greenHero,
   .summaryCard,
   .formCard,
+  .exerciseCard,
   .capabilityCard,
   .reportCard {
     border-radius: 16px;
     padding: var(--space-md);
+  }
+
+  .exerciseDrawer {
+    padding: var(--space-md);
+  }
+
+  .exerciseStats {
+    grid-template-columns: 1fr;
   }
 
   .titleBlock {

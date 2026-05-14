@@ -3,10 +3,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Banknote,
+  CalendarCheck,
   ClipboardCheck,
+  Copy,
+  ExternalLink,
   FileSpreadsheet,
+  FileText,
+  Link2,
+  Plus,
   Search,
   Shield,
+  Settings2,
+  X,
 } from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
@@ -104,6 +112,8 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [exerciseName, setExerciseName] = useState("Annual Staff Verification Exercise");
   const [exerciseScope, setExerciseScope] = useState("All ministry staff");
+  const [exerciseDrawerOpen, setExerciseDrawerOpen] = useState(false);
+  const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [selectedExerciseRules, setSelectedExerciseRules] = useState<Set<ExerciseRule>>(
     new Set(["proof_of_life", "identity_bvn", "document_consistency", "payroll_anomaly"]),
   );
@@ -184,12 +194,13 @@ export function DashboardPage() {
 
   useEffect(() => {
     const currentExercise = exercises[0];
-    if (!currentExercise) return;
+    if (!currentExercise || exerciseDrawerOpen) return;
     setExerciseName(currentExercise.name);
     setExerciseScope(currentExercise.scope);
     setSelectedExerciseRules(new Set(currentExercise.rules as ExerciseRule[]));
     setSelectedDocuments(new Set(currentExercise.documents));
-  }, [exercises]);
+    setEditingExerciseId(currentExercise.id);
+  }, [exerciseDrawerOpen, exercises]);
 
   async function runAction<T>(name: string, action: () => Promise<T>) {
     setLoading(name);
@@ -420,7 +431,9 @@ export function DashboardPage() {
       rules: Array.from(selectedExerciseRules),
       documents: Array.from(selectedDocuments),
     };
-    const existing = exercises[0];
+    const existing = editingExerciseId
+      ? exercises.find((item) => item.id === editingExerciseId)
+      : null;
     const exercise = await runAction("exercise-save", () =>
       existing
         ? latticeApi.updateVerificationExercise(existing.id, payload)
@@ -428,6 +441,7 @@ export function DashboardPage() {
     );
     if (exercise) {
       setExercises((current) => [exercise, ...current.filter((item) => item.id !== exercise.id)]);
+      setEditingExerciseId(exercise.id);
       const submissions = await latticeApi.listExerciseSubmissions(exercise.id);
       setExerciseSubmissions(submissions);
     }
@@ -443,7 +457,9 @@ export function DashboardPage() {
       documents: Array.from(selectedDocuments),
     };
     const saved = await runAction("exercise-publish", async () => {
-      const existing = exercises[0];
+      const existing = editingExerciseId
+        ? exercises.find((item) => item.id === editingExerciseId)
+        : null;
       const draft = existing
         ? await latticeApi.updateVerificationExercise(existing.id, payload)
         : await latticeApi.createVerificationExercise(payload);
@@ -451,7 +467,26 @@ export function DashboardPage() {
     });
     if (saved) {
       setExercises((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setEditingExerciseId(saved.id);
     }
+  }
+
+  function openNewExercise() {
+    setEditingExerciseId(null);
+    setExerciseName("June 2026 Verification Exercise");
+    setExerciseScope("Teaching staff only");
+    setSelectedExerciseRules(new Set(["proof_of_life", "identity_bvn", "document_consistency"]));
+    setSelectedDocuments(new Set(["Appointment letter", "Birth certificate / declaration of age", "Staff ID card"]));
+    setExerciseDrawerOpen(true);
+  }
+
+  function editExercise(exercise: VerificationExercise) {
+    setEditingExerciseId(exercise.id);
+    setExerciseName(exercise.name);
+    setExerciseScope(exercise.scope);
+    setSelectedExerciseRules(new Set(exercise.rules as ExerciseRule[]));
+    setSelectedDocuments(new Set(exercise.documents));
+    setExerciseDrawerOpen(true);
   }
 
   function toggleExerciseRule(rule: ExerciseRule) {
@@ -562,12 +597,17 @@ export function DashboardPage() {
             exercises={exercises}
             exerciseName={exerciseName}
             exerciseScope={exerciseScope}
+            isDrawerOpen={exerciseDrawerOpen}
             publishLoading={loading === "exercise-publish"}
             saveLoading={loading === "exercise-save"}
             selectedDocuments={selectedDocuments}
             selectedRules={selectedExerciseRules}
+            editingExerciseId={editingExerciseId}
+            onCloseDrawer={() => setExerciseDrawerOpen(false)}
             onDocumentToggle={toggleExerciseDocument}
+            onEdit={editExercise}
             onNameChange={setExerciseName}
+            onNew={openNewExercise}
             onPublish={publishExercise}
             onRuleToggle={toggleExerciseRule}
             onSave={saveExercise}
@@ -860,127 +900,245 @@ function PayrollView(props: {
 
 function ExercisesView({
   exercises,
+  editingExerciseId,
   exerciseName,
   exerciseScope,
+  isDrawerOpen,
   publishLoading,
   saveLoading,
   selectedDocuments,
   selectedRules,
+  onCloseDrawer,
   onDocumentToggle,
+  onEdit,
   onNameChange,
+  onNew,
   onPublish,
   onRuleToggle,
   onSave,
   onScopeChange,
 }: {
   exercises: VerificationExercise[];
+  editingExerciseId: string | null;
   exerciseName: string;
   exerciseScope: string;
+  isDrawerOpen: boolean;
   publishLoading: boolean;
   saveLoading: boolean;
   selectedDocuments: Set<string>;
   selectedRules: Set<ExerciseRule>;
+  onCloseDrawer: () => void;
   onDocumentToggle: (document: string) => void;
+  onEdit: (exercise: VerificationExercise) => void;
   onNameChange: (value: string) => void;
+  onNew: () => void;
   onPublish: () => void;
   onRuleToggle: (rule: ExerciseRule) => void;
   onSave: () => void;
   onScopeChange: (value: string) => void;
 }) {
-  const currentExercise = exercises[0];
+  const editingExercise = editingExerciseId
+    ? exercises.find((exercise) => exercise.id === editingExerciseId) ?? null
+    : null;
+
+  async function copyLink(exercise: VerificationExercise) {
+    if (!exercise.public_url) return;
+    await navigator.clipboard?.writeText(exercisePublicUrl(exercise));
+  }
+
   return (
     <section className={styles.pageStack}>
-      <div className={styles.exerciseGrid}>
-        <Card className={styles.formCard}>
-          <h2>Create verification exercise</h2>
-          <p>
-            Configure the exercise HR wants to publish to staff, then generate the worker link.
-          </p>
-          <label>
-            Exercise name
-            <input value={exerciseName} onChange={(event) => onNameChange(event.target.value)} />
-          </label>
-          <label>
-            Staff scope
-            <select value={exerciseScope} onChange={(event) => onScopeChange(event.target.value)}>
-              <option>All ministry staff</option>
-              <option>Teaching staff only</option>
-              <option>Non-teaching staff only</option>
-              <option>Selected departments</option>
-            </select>
-          </label>
-          <div className={styles.generatedLink}>
-            <span>Publish status</span>
-            <strong>{currentExercise?.status ?? "Draft ready"}</strong>
-            {currentExercise?.public_url ? (
-              <a href={exercisePublicUrl(currentExercise)} target="_blank">
-                {exercisePublicUrl(currentExercise)}
-              </a>
-            ) : (
-              <p>Save and publish to generate a worker-facing link.</p>
-            )}
-          </div>
-          <div className={styles.actions}>
-            <Button loading={saveLoading} onClick={onSave} variant="secondary">
-              Save Exercise
-            </Button>
-            <Button loading={publishLoading} onClick={onPublish}>
-              Publish Link
-            </Button>
-          </div>
-        </Card>
-
-        <Card className={styles.formCard}>
-          <h2>Documents to collect</h2>
-          <div className={styles.checkGrid}>
-            {exerciseDocuments.map((document) => (
-              <button
-                className={selectedDocuments.has(document) ? styles.checkActive : ""}
-                key={document}
-                onClick={() => onDocumentToggle(document)}
-                type="button"
-              >
-                {document}
-              </button>
-            ))}
-          </div>
-        </Card>
+      <div className={styles.sectionHead}>
+        <div>
+          <h2>Verification exercises</h2>
+          <p>Create staff verification programmes, publish worker links, and track submissions.</p>
+        </div>
+        <Button onClick={onNew}>
+          <Plus size={18} strokeWidth={1.5} />
+          New Exercise
+        </Button>
       </div>
 
-      <Card className={styles.formCard}>
-        <h2>Verification rules</h2>
-        <p>These rules define what the exercise checks when the worker submits evidence.</p>
-        <div className={styles.ruleGrid}>
-          {verificationRules.map((rule) => (
-            <button
-              className={selectedRules.has(rule.key) ? styles.ruleActive : ""}
-              key={rule.key}
-              onClick={() => onRuleToggle(rule.key)}
-              type="button"
-            >
-              <strong>{rule.label}</strong>
-              <span>{rule.detail}</span>
-            </button>
-          ))}
-        </div>
-      </Card>
+      {exercises.length ? (
+        <div className={styles.exerciseCards}>
+          {exercises.map((exercise) => {
+            const link = exercise.public_url ? exercisePublicUrl(exercise) : "";
+            return (
+              <Card className={styles.exerciseCard} key={exercise.id}>
+                <div className={styles.exerciseCardHeader}>
+                  <div>
+                    <span className={styles.statusPill}>{exercise.status}</span>
+                    <h2>{exercise.name}</h2>
+                    <p>{exercise.scope}</p>
+                  </div>
+                  <Button size="small" variant="secondary" onClick={() => onEdit(exercise)}>
+                    <Settings2 size={16} strokeWidth={1.5} />
+                    Edit
+                  </Button>
+                </div>
 
-      <Card className={styles.capabilityCard}>
-        <h2>Existing exercises</h2>
-        {exercises.length ? (
-          <DataTable
-            columns={["Exercise", "Scope", "Status", "Worker link"]}
-            rows={exercises.map((exercise) => [
-              exercise.name,
-              exercise.scope,
-              exercise.status,
-              exercise.public_url ? exercisePublicUrl(exercise) : "Draft",
-            ])}
-          />
-        ) : (
-          <p>No exercise has been saved yet.</p>
-        )}
-      </Card>
+                <div className={styles.exerciseStats}>
+                  <Metric label="Documents" value={String(exercise.documents.length)} />
+                  <Metric label="Rules" value={String(exercise.rules.length)} />
+                  <Metric
+                    label="Published"
+                    value={exercise.published_at ? new Date(exercise.published_at).toLocaleDateString("en-NG") : "Not yet"}
+                  />
+                </div>
+
+                <div className={styles.docList}>
+                  {exercise.documents.slice(0, 4).map((document) => (
+                    <span key={document}>
+                      <FileText size={16} strokeWidth={1.5} />
+                      {document}
+                    </span>
+                  ))}
+                  {exercise.documents.length > 4 ? <span>+{exercise.documents.length - 4} more documents</span> : null}
+                </div>
+
+                <div className={styles.generatedLink}>
+                  <span>Worker link</span>
+                  {link ? (
+                    <a className={styles.urlText} href={link} target="_blank" title={link}>
+                      {link}
+                    </a>
+                  ) : (
+                    <p>Publish this exercise to generate a worker-facing link.</p>
+                  )}
+                </div>
+
+                <div className={styles.exerciseCardActions}>
+                  {link ? (
+                    <>
+                      <Button size="small" variant="secondary" onClick={() => copyLink(exercise)}>
+                        <Copy size={16} strokeWidth={1.5} />
+                        Copy
+                      </Button>
+                      <a className={styles.linkButton} href={link} target="_blank">
+                        <ExternalLink size={16} strokeWidth={1.5} />
+                        Open link
+                      </a>
+                    </>
+                  ) : null}
+                  <Button
+                    size="small"
+                    loading={publishLoading && editingExerciseId === exercise.id}
+                    onClick={() => {
+                      onEdit(exercise);
+                      window.setTimeout(onPublish, 0);
+                    }}
+                  >
+                    <Link2 size={16} strokeWidth={1.5} />
+                    {exercise.public_url ? "Republish" : "Publish"}
+                  </Button>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      ) : (
+        <Card className={styles.emptyState}>
+          <CalendarCheck size={40} strokeWidth={1.5} />
+          <h2>No verification exercise yet</h2>
+          <p>
+            Start by creating the June 2026 staff verification exercise, choosing the documents HR needs,
+            and publishing a worker link.
+          </p>
+          <Button onClick={onNew}>Create Exercise</Button>
+        </Card>
+      )}
+
+      {isDrawerOpen ? (
+        <div className={styles.drawerOverlay} role="presentation">
+          <aside className={styles.exerciseDrawer} aria-label="Verification exercise setup">
+            <div className={styles.drawerHeader}>
+              <div>
+                <span>{editingExercise ? "Edit verification exercise" : "New verification exercise"}</span>
+                <h2>{exerciseName || "Verification exercise"}</h2>
+              </div>
+              <button aria-label="Close drawer" className={styles.iconButton} onClick={onCloseDrawer} type="button">
+                <X size={22} strokeWidth={1.5} />
+              </button>
+            </div>
+
+            <div className={styles.formCard}>
+              <label>
+                Exercise name
+                <input value={exerciseName} onChange={(event) => onNameChange(event.target.value)} />
+              </label>
+              <label>
+                Staff scope
+                <select value={exerciseScope} onChange={(event) => onScopeChange(event.target.value)}>
+                  <option>All ministry staff</option>
+                  <option>Teaching staff only</option>
+                  <option>Non-teaching staff only</option>
+                  <option>Selected departments</option>
+                </select>
+              </label>
+            </div>
+
+            <div className={styles.formCard}>
+              <h2>Documents to collect</h2>
+              <div className={styles.checkGrid}>
+                {exerciseDocuments.map((document) => (
+                  <button
+                    className={selectedDocuments.has(document) ? styles.checkActive : ""}
+                    key={document}
+                    onClick={() => onDocumentToggle(document)}
+                    type="button"
+                  >
+                    {document}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.formCard}>
+              <h2>Verification rules</h2>
+              <p>Choose the checks that run when staff submit the verification form.</p>
+              <div className={styles.ruleGrid}>
+                {verificationRules.map((rule) => (
+                  <button
+                    className={selectedRules.has(rule.key) ? styles.ruleActive : ""}
+                    key={rule.key}
+                    onClick={() => onRuleToggle(rule.key)}
+                    type="button"
+                  >
+                    <strong>{rule.label}</strong>
+                    <span>{rule.detail}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className={styles.generatedLink}>
+              <span>Publish status</span>
+              <strong>{editingExercise?.status ?? "Draft ready"}</strong>
+              {editingExercise?.public_url ? (
+                <a
+                  className={styles.urlText}
+                  href={exercisePublicUrl(editingExercise)}
+                  target="_blank"
+                  title={exercisePublicUrl(editingExercise)}
+                >
+                  {exercisePublicUrl(editingExercise)}
+                </a>
+              ) : (
+                <p>Save and publish to generate the worker-facing link.</p>
+              )}
+            </div>
+
+            <div className={styles.drawerFooter}>
+              <Button loading={saveLoading} onClick={onSave} variant="secondary">
+                Save Draft
+              </Button>
+              <Button loading={publishLoading} onClick={onPublish}>
+                Publish Link
+              </Button>
+            </div>
+          </aside>
+        </div>
+      ) : null}
 
     </section>
   );
