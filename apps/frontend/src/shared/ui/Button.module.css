@@ -5,5 +5,14 @@
 .content {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-sm);
+  column-gap: 12px;
+}
+
+.contentItem {
+  display: inline-flex;
+  align-items: center;
+}
+
+.contentItem + .contentItem {
+  margin-left: 12px;
 }

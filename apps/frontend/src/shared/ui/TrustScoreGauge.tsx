@@ -13,7 +13,13 @@ export function TrustScoreGauge({ score, size = "small", verdict }: TrustScoreGa
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (normalized / 100) * circumference;
   const displayVerdict = verdict ?? (normalized >= 80 ? "PASS" : normalized >= 50 ? "REVIEW" : "FAIL");
-  const tone = displayVerdict === "PASS" ? "success" : displayVerdict === "REVIEW" ? "warning" : "danger";
+  const tone = normalized === 100
+    ? "success"
+    : displayVerdict === "PASS"
+      ? "success"
+      : displayVerdict === "REVIEW"
+        ? "warning"
+        : "danger";
 
   return (
     <div className={`${styles.wrapper} ${styles[size]} ${styles[tone]}`}>

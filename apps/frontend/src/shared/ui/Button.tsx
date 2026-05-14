@@ -35,7 +35,15 @@ export function Button({
       variant={variant === "secondary" ? "outline" : "filled"}
       {...props}
     >
-      <span className={styles.content}>{children}</span>
+      <span className={styles.content}>
+        {Array.isArray(children)
+          ? children.map((child, index) => (
+              <span className={styles.contentItem} key={index}>
+                {child}
+              </span>
+            ))
+          : children}
+      </span>
     </MantineButton>
   );
 }
