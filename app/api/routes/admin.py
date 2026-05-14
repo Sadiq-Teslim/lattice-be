@@ -321,6 +321,85 @@ def create_exercise_submission(
     return submission
 
 
+@router.get(
+    "/public/verification-exercises/{public_token}",
+    response_model=VerificationExerciseResponse,
+)
+def get_public_exercise(
+    public_token: str,
+    db: Session = db_session,
+) -> VerificationExerciseResponse:
+    exercise = (
+        db.query(VerificationExercise)
+        .filter(
+            VerificationExercise.public_token == public_token,
+            VerificationExercise.status == "PUBLISHED",
+        )
+        .one_or_none()
+    )
+    if exercise is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="published verification exercise not found",
+        )
+    return exercise
+
+
+@router.post(
+    "/public/verification-exercises/{public_token}/submissions",
+    response_model=ExerciseSubmissionResponse,
+)
+def create_public_exercise_submission(
+    public_token: str,
+    payload: ExerciseSubmissionCreateRequest,
+    db: Session = db_session,
+) -> ExerciseSubmissionResponse:
+    exercise = (
+        db.query(VerificationExercise)
+        .filter(
+            VerificationExercise.public_token == public_token,
+            VerificationExercise.status == "PUBLISHED",
+        )
+        .one_or_none()
+    )
+    if exercise is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="published verification exercise not found",
+        )
+
+    worker = None
+    if payload.worker_code:
+        worker = (
+            db.query(Worker)
+            .filter(
+                Worker.worker_code == payload.worker_code,
+                Worker.ministry == exercise.ministry,
+            )
+            .one_or_none()
+        )
+    submission_payload = payload.model_dump()
+    if worker is not None:
+        submission_payload["worker_id"] = worker.id
+        submission_payload["full_name"] = worker.full_name
+    submission = ExerciseSubmission(exercise_id=exercise.id, **submission_payload)
+    db.add(submission)
+    db.add(
+        AuditLog(
+            worker_id=submission.worker_id,
+            event_type="PUBLIC_VERIFICATION_EXERCISE_SUBMITTED",
+            payload={
+                "exercise_id": exercise.id,
+                "worker_code": submission.worker_code,
+                "decision": submission.decision,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
 @router.get("/reports/summary", response_model=AdminSummaryResponse)
 def admin_summary(
     ministry: str | None = Query(default=None),

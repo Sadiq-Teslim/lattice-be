@@ -3,11 +3,17 @@ from decimal import Decimal
 from app.api.routes.admin import (
     approve_payment,
     create_exercise,
+    create_public_exercise_submission,
     flag_investigation,
+    get_public_exercise,
     publish_exercise,
 )
 from app.db.models import VIQ, PayCycle, VerificationSession, Worker
-from app.schemas.admin import StaffActionRequest, VerificationExerciseCreateRequest
+from app.schemas.admin import (
+    ExerciseSubmissionCreateRequest,
+    StaffActionRequest,
+    VerificationExerciseCreateRequest,
+)
 
 
 def _verified_worker(db_session):
@@ -89,3 +95,35 @@ def test_admin_can_create_and_publish_verification_exercise(db_session) -> None:
     assert published.status == "PUBLISHED"
     assert published.public_token
     assert published.public_url
+
+
+def test_public_exercise_link_loads_and_accepts_submission(db_session) -> None:
+    exercise = create_exercise(
+        VerificationExerciseCreateRequest(
+            ministry="Ogun State Ministry of Education",
+            name="June 2026 Verification Exercise",
+            scope="Teaching staff only",
+            rules=["proof_of_life"],
+            documents=["Staff ID card"],
+        ),
+        db=db_session,
+    )
+    published = publish_exercise(exercise.id, db=db_session)
+
+    public = get_public_exercise(published.public_token, db=db_session)
+    submission = create_public_exercise_submission(
+        published.public_token,
+        ExerciseSubmissionCreateRequest(
+            worker_code="ADM-001",
+            full_name="Adebayo Adeyemi",
+            document_status="DOCUMENTS_SUBMITTED",
+            liveness_status="PASSED",
+            decision="PASS",
+            payload={"documents_submitted": ["Staff ID card"]},
+        ),
+        db=db_session,
+    )
+
+    assert public.id == published.id
+    assert submission.exercise_id == published.id
+    assert submission.decision == "PASS"

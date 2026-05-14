@@ -161,6 +161,30 @@ export const latticeApi = {
       { method: "POST" },
     ),
 
+  getPublicVerificationExercise: (token: string) =>
+    request<VerificationExercise>(
+      `/admin/public/verification-exercises/${encodeURIComponent(token)}`,
+    ),
+
+  submitPublicVerificationExercise: (
+    token: string,
+    payload: {
+      worker_code?: string;
+      full_name: string;
+      document_status?: string;
+      liveness_status?: string;
+      decision: "PASS" | "REVIEW" | "FAIL";
+      payload: Record<string, unknown>;
+    },
+  ) =>
+    request<ExerciseSubmission>(
+      `/admin/public/verification-exercises/${encodeURIComponent(token)}/submissions`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
   listExerciseSubmissions: (exerciseId: string) =>
     request<ExerciseSubmission[]>(
       `/admin/verification-exercises/${encodeURIComponent(exerciseId)}/submissions`,

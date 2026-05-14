@@ -927,7 +927,13 @@ function ExercisesView({
           <div className={styles.generatedLink}>
             <span>Publish status</span>
             <strong>{currentExercise?.status ?? "Draft ready"}</strong>
-            <p>{currentExercise?.public_url ?? "Save and publish to generate a worker-facing link."}</p>
+            {currentExercise?.public_url ? (
+              <a href={absoluteExerciseUrl(currentExercise.public_url)} target="_blank">
+                {absoluteExerciseUrl(currentExercise.public_url)}
+              </a>
+            ) : (
+              <p>Save and publish to generate a worker-facing link.</p>
+            )}
           </div>
           <div className={styles.actions}>
             <Button loading={saveLoading} onClick={onSave} variant="secondary">
@@ -983,7 +989,7 @@ function ExercisesView({
               exercise.name,
               exercise.scope,
               exercise.status,
-              exercise.public_url ?? "Not published",
+              exercise.public_url ? absoluteExerciseUrl(exercise.public_url) : "Draft",
             ])}
           />
         ) : (
@@ -1319,6 +1325,12 @@ function documentEvidence(documents: DocumentConsistencyResponse) {
     flags: documents.flags,
     summary: documents.summary,
   };
+}
+
+function absoluteExerciseUrl(path: string) {
+  if (path.startsWith("http")) return path;
+  if (typeof window === "undefined") return path;
+  return `${window.location.origin}${path}`;
 }
 
 function documentResultsFromActions(actions: StaffAction[]) {
