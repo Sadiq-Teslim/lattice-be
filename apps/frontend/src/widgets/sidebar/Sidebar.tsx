@@ -28,7 +28,7 @@ const items: Array<{ key: ConsolePage; label: string; icon: typeof LayoutDashboa
   { key: "staff", label: "Staff Records", icon: Users },
   { key: "payroll", label: "Payroll", icon: Banknote },
   { key: "exercises", label: "Verification Exercises", icon: ClipboardCheck },
-  { key: "checks", label: "Lattice Checks", icon: ShieldCheck },
+  { key: "checks", label: "Verification Rules", icon: ShieldCheck },
   { key: "submissions", label: "Submissions", icon: UploadCloud },
   { key: "disbursements", label: "Disbursements", icon: Banknote },
   { key: "documents", label: "Documents", icon: FileArchive },

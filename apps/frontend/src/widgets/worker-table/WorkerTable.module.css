@@ -78,3 +78,76 @@
   font-weight: 700;
   text-align: center !important;
 }
+
+@media (max-width: 760px) {
+  .tableWrap {
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: grid;
+    gap: var(--space-md);
+  }
+
+  .table tbody tr {
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    background: white;
+    box-shadow: var(--shadow-1);
+    overflow: hidden;
+  }
+
+  .table tbody tr:hover,
+  .selected {
+    background: white;
+  }
+
+  .flagged {
+    background: rgba(254, 226, 226, 0.32) !important;
+  }
+
+  .table td {
+    display: grid;
+    grid-template-columns: minmax(110px, 0.4fr) minmax(0, 0.6fr);
+    gap: var(--space-sm);
+    border-bottom: 1px solid var(--color-border);
+    padding: var(--space-md);
+    white-space: normal !important;
+  }
+
+  .table td::before {
+    content: attr(data-label);
+    color: var(--color-text-secondary);
+    font-size: 14px;
+    font-weight: 800;
+  }
+
+  .table td:last-child {
+    border-bottom: 0;
+  }
+
+  .empty {
+    display: block !important;
+    text-align: center !important;
+  }
+
+  .empty::before {
+    content: "";
+  }
+}

@@ -43,7 +43,7 @@ export function WorkerTable({
           {workers.length === 0 ? (
             <tr>
               <td className={styles.empty} colSpan={8}>
-                Import nominal roll to load Ogun State ministry workers.
+                No staff records match the current filter.
               </td>
             </tr>
           ) : null}
@@ -70,34 +70,34 @@ export function WorkerTable({
                 key={worker.id}
                 onClick={() => onSelect(worker)}
               >
-                <td>
+                <td data-label="Staff Record">
                   <div className={styles.primaryCell}>
                     <strong>{worker.worker_code}</strong>
                     <span>{worker.full_name}</span>
                     <small>DOB {formatDate(worker.date_of_birth)}</small>
                   </div>
                 </td>
-                <td>
+                <td data-label="Posting">
                   <div className={styles.primaryCell}>
                     <strong>{worker.department ?? "Teaching Service"}</strong>
                     <span>{schoolPosting(worker)}</span>
                     <small>{worker.status}</small>
                   </div>
                 </td>
-                <td>
+                <td data-label="Grade / Step">
                   <strong>{grade}</strong>
                 </td>
-                <td>{formatMoney(worker.salary_amount)}</td>
-                <td>
+                <td data-label="Gross Pay">{formatMoney(worker.salary_amount)}</td>
+                <td data-label="Document File">
                   <Badge
                     label={documentStatus}
                     variant={documentStatus === "Complete" ? "success" : "warning"}
                   />
                 </td>
-                <td>
+                <td data-label="Trust Score">
                   <TrustScoreGauge score={score} />
                 </td>
-                <td>
+                <td data-label="Decision">
                   <div className={styles.decision}>
                     <Badge label={verdict} variant={verdictVariant(verdict)} />
                     <span className={styles.payment}>{payment}</span>
@@ -106,7 +106,7 @@ export function WorkerTable({
                     </div>
                   </div>
                 </td>
-                <td>
+                <td data-label="Actions">
                   <Button
                     size="small"
                     variant="secondary"

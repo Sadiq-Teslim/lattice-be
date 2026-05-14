@@ -1,15 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Banknote,
   CheckCircle,
   ClipboardCheck,
   Copy,
   FileSpreadsheet,
-  LockKeyhole,
   Search,
-  Send,
   Shield,
   UploadCloud,
 } from "lucide-react";
@@ -24,8 +22,7 @@ import type {
   Viq,
   Worker,
 } from "@/shared/api/types";
-import { verdictVariant } from "@/entities/viq/model";
-import { Badge, Button, Card, FlagPill, TrustScoreGauge } from "@/shared/ui";
+import { Button, Card } from "@/shared/ui";
 import { Sidebar, type ConsolePage } from "@/widgets/sidebar/Sidebar";
 import { StatsGrid } from "@/widgets/stats/StatsGrid";
 import { WorkerDetailDrawer } from "@/widgets/worker-detail/WorkerDetailDrawer";
@@ -34,6 +31,14 @@ import styles from "./DashboardPage.module.css";
 
 type Filter = "ALL" | "PASS" | "REVIEW" | "FAIL";
 type PayrollStage = "EMPTY" | "IMPORTED" | "LATTICE_READY" | "DISBURSED";
+type PaginationState = {
+  page: number;
+  total: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+};
+
+const PAGE_SIZE = 12;
 
 const latticeCheckOptions = [
   "Proof of life",
@@ -60,6 +65,7 @@ const requiredDocuments = [
 ];
 
 export function DashboardPage() {
+  const autoSeedStarted = useRef(false);
   const [activePage, setActivePage] = useState<ConsolePage>("dashboard");
   const [seed, setSeed] = useState<DemoSeedResponse | null>(null);
   const [workers, setWorkers] = useState<Worker[]>([]);
@@ -73,6 +79,7 @@ export function DashboardPage() {
   const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<Filter>("ALL");
   const [query, setQuery] = useState("");
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [exerciseCreated, setExerciseCreated] = useState(false);
@@ -98,6 +105,18 @@ export function DashboardPage() {
     const text = `${worker.worker_code} ${worker.full_name} ${worker.department ?? ""}`.toLowerCase();
     return matchesFilter && text.includes(query.toLowerCase());
   });
+  const pageCount = Math.max(1, Math.ceil(filteredWorkers.length / PAGE_SIZE));
+  const currentPage = Math.min(page, pageCount);
+  const paginatedWorkers = filteredWorkers.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+  const pagination: PaginationState = {
+    page: currentPage,
+    total: filteredWorkers.length,
+    pageSize: PAGE_SIZE,
+    onPageChange: setPage,
+  };
 
   const blocked = Object.values(viqs).filter((viq) => viq.verdict === "FAIL").length;
   const review =
@@ -117,10 +136,20 @@ export function DashboardPage() {
     payrollStage === "DISBURSED"
       ? "Eligible salaries released"
       : payrollStage === "LATTICE_READY"
-        ? "Lattice gate completed"
+        ? "Verification completed"
         : payrollStage === "IMPORTED"
-          ? "Nominal roll imported"
-          : "Awaiting nominal roll";
+          ? "Staff records loaded"
+          : "Loading staff records";
+
+  useEffect(() => {
+    if (autoSeedStarted.current || workers.length > 0) return;
+    autoSeedStarted.current = true;
+    void importNominalRoll({ navigate: false });
+  }, []);
+
+  useEffect(() => {
+    setPage(1);
+  }, [filter, query, activePage]);
 
   async function runAction<T>(name: string, action: () => Promise<T>) {
     setLoading(name);
@@ -139,7 +168,7 @@ export function DashboardPage() {
     return new Promise((resolve) => window.setTimeout(resolve, ms));
   }
 
-  async function importNominalRoll() {
+  async function importNominalRoll(options: { navigate?: boolean } = {}) {
     const result = await runAction("seed", latticeApi.seedPayroll);
     if (!result) return;
     setSeed(result);
@@ -152,7 +181,9 @@ export function DashboardPage() {
     if (listedWorkers) {
       setWorkers(listedWorkers);
       setSelectedWorker(null);
-      setActivePage("staff");
+      if (options.navigate ?? true) {
+        setActivePage("staff");
+      }
     }
   }
 
@@ -180,7 +211,7 @@ export function DashboardPage() {
   }
 
   async function verifyAllEligible() {
-    const candidates = filteredWorkers.slice(0, 10);
+    const candidates = paginatedWorkers;
     for (const worker of candidates) {
       await verifyWorker(worker);
     }
@@ -244,7 +275,7 @@ export function DashboardPage() {
           onDisburse={disburseEligible}
           importLoading={loading === "seed" || loading === "workers"}
           gateLoading={loading === "anomaly"}
-          canRunGate={Boolean(seed)}
+          canRunGate={Boolean(seed) && workers.length > 0}
           canDisburse={workers.length > 0 && payrollStage === "LATTICE_READY"}
         />
 
@@ -265,7 +296,7 @@ export function DashboardPage() {
 
         {activePage === "staff" ? (
           <StaffRecordsView
-            workers={filteredWorkers}
+            workers={paginatedWorkers}
             anomalies={anomalies}
             viqs={viqs}
             documentResults={documentResults}
@@ -274,6 +305,7 @@ export function DashboardPage() {
             filter={filter}
             query={query}
             loading={loading}
+            pagination={pagination}
             onFilter={setFilter}
             onQuery={setQuery}
             onSelect={setSelectedWorker}
@@ -284,7 +316,7 @@ export function DashboardPage() {
 
         {activePage === "payroll" ? (
           <PayrollView
-            workers={filteredWorkers}
+            workers={paginatedWorkers}
             anomalies={anomalies}
             viqs={viqs}
             disbursedIds={disbursedIds}
@@ -293,6 +325,7 @@ export function DashboardPage() {
             heldPayroll={heldPayroll}
             netEligible={netEligible}
             payrollStage={payrollStage}
+            pagination={pagination}
             onSelect={setSelectedWorker}
             onVerify={verifyWorker}
             onRunGate={runLatticeGate}
@@ -403,15 +436,15 @@ function PageHeader({
         </div>
       </div>
       <div className={styles.actions}>
-        <Button loading={importLoading} onClick={onImport} variant="secondary">
+        <Button loading={importLoading} onClick={() => onImport()} variant="secondary">
           <FileSpreadsheet size={18} strokeWidth={1.5} />
-          Import Nominal Roll
+          Refresh Staff Records
         </Button>
-        <Button disabled={!canRunGate} loading={gateLoading} onClick={onRunGate}>
+        <Button disabled={!canRunGate} loading={gateLoading} onClick={() => onRunGate()}>
           <Shield size={18} strokeWidth={1.5} />
-          Run Lattice Gate
+          Run Verification
         </Button>
-        <Button disabled={!canDisburse} onClick={onDisburse} variant="secondary">
+        <Button disabled={!canDisburse} onClick={() => onDisburse()} variant="secondary">
           <Banknote size={18} strokeWidth={1.5} />
           Release Eligible
         </Button>
@@ -459,7 +492,7 @@ function DashboardView({
       <StatsGrid
         total={workers.length}
         completeRecords={workers.length ? workers.length - Math.min(held, workers.length) : 0}
-        latticeCleared={cleared}
+        verified={cleared}
         held={held}
         netPayable={formatMoney(netEligible)}
       />
@@ -467,18 +500,9 @@ function DashboardView({
       <section className={styles.commandStrip}>
         <Card className={styles.batchCard}>
           <Metric label="Gross payroll" value={formatMoney(grossPayroll)} />
-          <Metric label="Held by Lattice" value={formatMoney(heldPayroll)} />
+          <Metric label="Held for review" value={formatMoney(heldPayroll)} />
           <Metric label="Eligible release" value={formatMoney(netEligible)} />
           <Metric label="Records loaded" value={String(workers.length)} />
-        </Card>
-        <Card className={styles.latticeGate}>
-          <div className={styles.gateIcon}>
-            <LockKeyhole size={24} strokeWidth={1.5} />
-          </div>
-          <div>
-            <h2>Lattice sits between records and payment</h2>
-            <p>Staff records, documents, proof-of-life, anomaly risk, and disbursement status are checked before salaries move.</p>
-          </div>
         </Card>
       </section>
     </>
@@ -495,6 +519,7 @@ function StaffRecordsView(props: {
   filter: Filter;
   query: string;
   loading: string | null;
+  pagination: PaginationState;
   onFilter: (filter: Filter) => void;
   onQuery: (value: string) => void;
   onSelect: (worker: Worker) => void;
@@ -506,11 +531,11 @@ function StaffRecordsView(props: {
       <div className={styles.sectionHead}>
         <div>
           <h2>Staff records and nominal roll</h2>
-          <p>Each staff file contains salary, posting, bank, employment, documents, and Lattice verification status.</p>
+          <p>Each staff file contains salary, posting, bank, employment, documents, and verification status.</p>
         </div>
         <Button disabled={!props.workers.length} loading={props.loading?.startsWith("verify")} onClick={props.onBulkVerify}>
           <ClipboardCheck size={18} strokeWidth={1.5} />
-          Bulk Verify Visible
+          Verify Visible Staff
         </Button>
       </div>
       <Toolbar filter={props.filter} query={props.query} onFilter={props.onFilter} onQuery={props.onQuery} />
@@ -523,6 +548,7 @@ function StaffRecordsView(props: {
         onSelect={props.onSelect}
         onVerify={props.onVerify}
       />
+      <PaginationControls pagination={props.pagination} />
     </section>
   );
 }
@@ -537,6 +563,7 @@ function PayrollView(props: {
   heldPayroll: number;
   netEligible: number;
   payrollStage: PayrollStage;
+  pagination: PaginationState;
   onSelect: (worker: Worker) => void;
   onVerify: (worker: Worker) => void;
   onRunGate: () => void;
@@ -557,7 +584,7 @@ function PayrollView(props: {
           <p>Verify staff records individually or in bulk before disbursement.</p>
         </div>
         <div className={styles.actions}>
-          <Button onClick={props.onRunGate}>Run Lattice For Batch</Button>
+          <Button onClick={props.onRunGate}>Run Batch Verification</Button>
           <Button onClick={props.onDisburse} variant="secondary">Disburse Eligible</Button>
         </div>
       </div>
@@ -570,6 +597,7 @@ function PayrollView(props: {
         onSelect={props.onSelect}
         onVerify={props.onVerify}
       />
+      <PaginationControls pagination={props.pagination} />
     </section>
   );
 }
@@ -631,7 +659,7 @@ function ExercisesView({
           <div className={styles.generatedLink}>
             <span>Worker link</span>
             <strong>https://ogunstate.gov.ng/staff-verify/june-2026</strong>
-            <p>Powered by Lattice. Workers submit documents, complete liveness if required, and receive a decision reference.</p>
+            <p>Workers submit documents, complete liveness if required, and receive a decision reference.</p>
             <Button variant="secondary">
               <Copy size={18} strokeWidth={1.5} />
               Copy Link
@@ -709,7 +737,7 @@ function DisbursementsView({
 }) {
   return (
     <DataTable
-      columns={["Staff", "Amount", "Bank details", "Lattice decision", "Payment status", "Squad reference"]}
+      columns={["Staff", "Amount", "Bank details", "Verification decision", "Payment status", "Squad reference"]}
       rows={workers.slice(0, 12).map((worker) => [
         `${worker.worker_code} - ${worker.full_name}`,
         formatMoney(Number(worker.salary_amount)),
@@ -778,7 +806,7 @@ function ReportsView({ workers, held, netEligible }: { workers: Worker[]; held: 
 function SettingsView() {
   return (
     <section className={styles.settingsGrid}>
-      {["Ministry profile", "Payroll thresholds", "Lattice rules", "Squad payment settings", "Notifications", "Admin roles"].map((item) => (
+      {["Ministry profile", "Payroll thresholds", "Verification rules", "Squad payment settings", "Notifications", "Admin roles"].map((item) => (
         <Card className={styles.formCard} key={item}>
           <h2>{item}</h2>
           <label>
@@ -831,6 +859,41 @@ function Toolbar({
   );
 }
 
+function PaginationControls({ pagination }: { pagination: PaginationState }) {
+  const start = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const end = Math.min(pagination.total, pagination.page * pagination.pageSize);
+  const pageCount = Math.max(1, Math.ceil(pagination.total / pagination.pageSize));
+
+  return (
+    <div className={styles.pagination}>
+      <span>
+        Showing {start}-{end} of {pagination.total} staff
+      </span>
+      <div>
+        <Button
+          disabled={pagination.page <= 1}
+          onClick={() => pagination.onPageChange(pagination.page - 1)}
+          size="small"
+          variant="secondary"
+        >
+          Previous
+        </Button>
+        <strong>
+          Page {pagination.page} of {pageCount}
+        </strong>
+        <Button
+          disabled={pagination.page >= pageCount}
+          onClick={() => pagination.onPageChange(pagination.page + 1)}
+          size="small"
+          variant="secondary"
+        >
+          Next
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function DataTable({ columns, rows }: { columns: string[]; rows: string[][] }) {
   return (
     <div className={styles.tableWrap}>
@@ -869,7 +932,7 @@ function pageTitle(page: ConsolePage) {
     staff: "Staff Records",
     payroll: "Payroll",
     exercises: "Verification Exercises",
-    checks: "Lattice Checks",
+    checks: "Verification Rules",
     submissions: "Submissions",
     disbursements: "Disbursements",
     documents: "Documents",

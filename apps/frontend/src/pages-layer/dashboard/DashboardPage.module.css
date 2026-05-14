@@ -182,7 +182,7 @@
 .exerciseGrid,
 .settingsGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+  grid-template-columns: 1fr;
   gap: var(--space-md);
 }
 
@@ -372,9 +372,33 @@
   font-size: 14px;
 }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: white;
+  padding: var(--space-md);
+  box-shadow: var(--shadow-1);
+}
+
+.pagination span,
+.pagination strong {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.pagination div {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
 @media (max-width: 1100px) {
   .heroGrid,
-  .commandStrip,
   .exerciseGrid,
   .settingsGrid,
   .checkGrid,
@@ -399,11 +423,73 @@
 }
 
 @media (max-width: 900px) {
+  .shell {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) {
   .main {
     padding: var(--space-md);
   }
 
   .search {
     min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .main {
+    padding: var(--space-sm);
+  }
+
+  .topbar,
+  .header,
+  .sectionHead,
+  .payrollHeader,
+  .batchCard,
+  .greenHero,
+  .summaryCard,
+  .formCard,
+  .capabilityCard,
+  .reportCard {
+    border-radius: 16px;
+    padding: var(--space-md);
+  }
+
+  .titleBlock {
+    align-items: flex-start;
+  }
+
+  .titleBlock img {
+    width: 48px;
+    height: 48px;
+  }
+
+  .header h1 {
+    font-size: 24px;
+  }
+
+  .greenHero strong {
+    font-size: 34px;
+  }
+
+  .operator {
+    align-items: flex-start;
+  }
+
+  .operator img {
+    width: 40px;
+    height: 40px;
+  }
+
+  .pagination,
+  .pagination div {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pagination {
+    text-align: center;
   }
 }

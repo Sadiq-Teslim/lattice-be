@@ -1,6 +1,6 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: var(--space-md);
 }
 
@@ -19,6 +19,7 @@
 .card strong {
   font-size: 28px;
   line-height: 1.1;
+  overflow-wrap: anywhere;
 }
 
 .neutral {
