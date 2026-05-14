@@ -1,13 +1,13 @@
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
-  gap: var(--space-md);
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
+  gap: var(--space-sm);
 }
 
 .card {
   display: grid;
-  gap: var(--space-sm);
-  padding: var(--space-lg);
+  gap: var(--space-xs);
+  padding: var(--space-md);
 }
 
 .card span {
@@ -17,7 +17,7 @@
 }
 
 .card strong {
-  font-size: 28px;
+  font-size: 22px;
   line-height: 1.1;
   overflow-wrap: anywhere;
 }

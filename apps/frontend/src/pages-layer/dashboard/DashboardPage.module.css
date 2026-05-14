@@ -8,9 +8,9 @@
   display: grid;
   flex: 1;
   align-content: start;
-  gap: var(--space-md);
+  gap: 12px;
   min-width: 0;
-  padding: var(--space-lg);
+  padding: var(--space-md);
 }
 
 .topbar,
@@ -24,9 +24,9 @@
 }
 
 .topbar {
-  border-radius: 24px;
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.78);
-  padding: var(--space-md);
+  padding: 10px var(--space-md);
   box-shadow: var(--shadow-1);
 }
 
@@ -61,8 +61,8 @@
 }
 
 .operator img {
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   object-fit: contain;
 }
 
@@ -86,9 +86,9 @@
 }
 
 .header {
-  border-radius: 24px;
+  border-radius: 18px;
   background: white;
-  padding: var(--space-lg);
+  padding: var(--space-md);
   box-shadow: var(--shadow-1);
 }
 
@@ -99,8 +99,8 @@
 }
 
 .titleBlock img {
-  width: 64px;
-  height: 64px;
+  width: 50px;
+  height: 50px;
   object-fit: contain;
 }
 
@@ -121,7 +121,7 @@
 }
 
 .header h1 {
-  font-size: 28px;
+  font-size: 24px;
   line-height: 1.15;
 }
 
@@ -152,9 +152,9 @@
 .summaryCard {
   display: grid;
   align-content: space-between;
-  gap: var(--space-md);
-  min-height: 220px;
-  padding: var(--space-xl);
+  gap: var(--space-sm);
+  min-height: 160px;
+  padding: var(--space-lg);
 }
 
 .greenHero {
@@ -170,12 +170,12 @@
 }
 
 .greenHero strong {
-  font-size: 48px;
+  font-size: 38px;
   line-height: 1;
 }
 
 .summaryCard strong {
-  font-size: 28px;
+  font-size: 24px;
 }
 
 .commandStrip,
@@ -190,8 +190,8 @@
 .payrollHeader {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--space-md);
-  padding: var(--space-lg);
+  gap: var(--space-sm);
+  padding: var(--space-md);
 }
 
 .payrollHeader {
@@ -216,7 +216,7 @@
 
 .metric strong,
 .batchCard strong {
-  font-size: 18px;
+  font-size: 16px;
 }
 
 .latticeGate {
@@ -245,7 +245,7 @@
 .sectionHead {
   border-radius: var(--radius-card);
   background: white;
-  padding: var(--space-lg);
+  padding: var(--space-md);
   box-shadow: var(--shadow-1);
 }
 
@@ -259,7 +259,7 @@
 
 .tabs button,
 .checkGrid button {
-  min-height: 40px;
+  min-height: 36px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   background: white;
@@ -284,8 +284,8 @@
 .capabilityCard,
 .reportCard {
   display: grid;
-  gap: var(--space-md);
-  padding: var(--space-lg);
+  gap: var(--space-sm);
+  padding: var(--space-md);
 }
 
 .formCard label {
@@ -362,7 +362,7 @@
 .simpleTable th,
 .simpleTable td {
   border-bottom: 1px solid var(--color-border);
-  padding: var(--space-md);
+  padding: 10px var(--space-md);
   text-align: left;
   vertical-align: top;
 }

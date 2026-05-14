@@ -15,7 +15,7 @@
 .table th,
 .table td {
   border-bottom: 1px solid var(--color-border);
-  padding: var(--space-md);
+  padding: 10px 12px;
   text-align: left;
   vertical-align: middle;
 }
@@ -27,8 +27,12 @@
 
 .table th {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
+}
+
+.table td {
+  font-size: 14px;
 }
 
 .table tbody tr {
@@ -70,7 +74,7 @@
 .primaryCell span,
 .primaryCell small {
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .empty {

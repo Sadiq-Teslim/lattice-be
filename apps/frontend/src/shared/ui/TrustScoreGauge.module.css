@@ -10,7 +10,7 @@
 }
 
 .small {
-  width: 64px;
+  width: 54px;
 }
 
 .track {
@@ -36,7 +36,7 @@
 }
 
 .small .score {
-  font-size: 20px;
+  font-size: 18px;
 }
 
 .verdict {

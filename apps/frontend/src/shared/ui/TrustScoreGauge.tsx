@@ -7,8 +7,8 @@ type TrustScoreGaugeProps = {
 
 export function TrustScoreGauge({ score, size = "small" }: TrustScoreGaugeProps) {
   const normalized = Math.max(0, Math.min(100, score));
-  const radius = size === "large" ? 52 : 28;
-  const dimension = size === "large" ? 120 : 64;
+  const radius = size === "large" ? 52 : 23;
+  const dimension = size === "large" ? 120 : 54;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (normalized / 100) * circumference;
   const verdict = normalized >= 80 ? "PASS" : normalized >= 50 ? "REVIEW" : "FAIL";
