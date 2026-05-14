@@ -10,3 +10,8 @@ models/
 dist/
 build/
 *.egg-info/
+node_modules/
+.next/
+apps/frontend/node_modules/
+apps/frontend/.next/
+apps/frontend/tsconfig.tsbuildinfo

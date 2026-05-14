@@ -1,0 +1,58 @@
+.wrapper {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  color: var(--color-brand);
+}
+
+.large {
+  width: 120px;
+}
+
+.small {
+  width: 64px;
+}
+
+.track {
+  stroke: var(--color-border);
+}
+
+.progress {
+  stroke: currentcolor;
+  transform: rotate(-90deg);
+  transform-origin: center;
+  transition: stroke-dashoffset 200ms ease;
+}
+
+.score {
+  position: absolute;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.large .score {
+  font-size: 32px;
+  top: 39px;
+}
+
+.small .score {
+  font-size: 20px;
+}
+
+.verdict {
+  margin-top: -6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.success {
+  color: var(--color-success);
+}
+
+.warning {
+  color: var(--color-warning);
+}
+
+.danger {
+  color: var(--color-danger);
+}

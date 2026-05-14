@@ -1,0 +1,58 @@
+.screen {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.header {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-2xl) var(--space-lg);
+  color: white;
+  text-align: center;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+}
+
+.header p {
+  margin: 0;
+  font-size: 16px;
+}
+
+.pass .header {
+  background: var(--color-success);
+}
+
+.review .header {
+  background: var(--color-warning);
+}
+
+.fail .header {
+  background: var(--color-danger);
+}
+
+.body {
+  display: grid;
+  gap: var(--space-md);
+  max-width: 480px;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.body p {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.body strong {
+  font-size: 28px;
+}
+
+.body span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
