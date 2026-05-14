@@ -35,7 +35,7 @@ export function Button({
       variant={variant === "secondary" ? "outline" : "filled"}
       {...props}
     >
-      {children}
+      <span className={styles.content}>{children}</span>
     </MantineButton>
   );
 }

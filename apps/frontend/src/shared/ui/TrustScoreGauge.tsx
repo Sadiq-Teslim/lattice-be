@@ -39,6 +39,7 @@ export function TrustScoreGauge({ score, size = "small", verdict }: TrustScoreGa
         />
       </svg>
       <div className={styles.score}>{normalized}</div>
+      {size === "small" && normalized === 100 ? <div className={styles.fullRing} aria-hidden /> : null}
       {size === "large" ? <div className={styles.verdict}>{displayVerdict}</div> : null}
     </div>
   );
