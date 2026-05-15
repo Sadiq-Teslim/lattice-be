@@ -145,7 +145,7 @@ def _verified_ogun_records(
     base_time = datetime(2026, 5, 1, 8, 0, 0)
     records = [
         _verified_worker_record(
-            worker_code=f"EDU-{batch_id}-V0001",
+            worker_code=_ogun_staff_id(0),
             full_name="Teslim Adetola Sadiq",
             bvn=teslim_bvn,
             phone=teslim_phone,
@@ -166,7 +166,7 @@ def _verified_ogun_records(
             registration_timestamp=base_time + timedelta(minutes=15),
         ),
         _verified_worker_record(
-            worker_code=f"EDU-{batch_id}-V0002",
+            worker_code=_ogun_staff_id(1),
             full_name="Adebayo Ogunleye",
             bvn="22800000002",
             phone="08030000002",
@@ -185,9 +185,10 @@ def _verified_ogun_records(
             gps_lng=Decimal("3.3451"),
             registration_ip="10.44.18.34",
             registration_timestamp=base_time + timedelta(minutes=45),
+            verification_case="fail",
         ),
         _verified_worker_record(
-            worker_code=f"EDU-{batch_id}-V0003",
+            worker_code=_ogun_staff_id(2),
             full_name="Kemi Adeyemi",
             bvn="22800000003",
             phone="08030000003",
@@ -232,8 +233,17 @@ def _verified_worker_record(
     gps_lng: Decimal,
     registration_ip: str,
     registration_timestamp: datetime,
+    verification_case: str = "pass",
 ) -> dict:
     appointment_date = "2014-09-15"
+    preverified_evidence = _preverified_evidence(verification_case)
+    document_profile = _document_profile(
+        worker_code=worker_code,
+        bvn=bvn,
+        date_of_birth=date_of_birth,
+        appointment_date=appointment_date,
+        verification_case=verification_case,
+    )
     return {
         "worker_code": worker_code,
         "full_name": full_name,
@@ -258,45 +268,108 @@ def _verified_worker_record(
         "risk_metadata": {
             "source": "seeded_ogun_staff_file",
             "demo_verifiable": True,
+            "demo_verification_case": verification_case,
             "is_injected_ghost": False,
             "ghost_cluster": None,
-            "preverified_evidence": {
-                "liveness": {"status": "PASSED", "confidence": 0.97, "attempts": 1},
-                "deepfake": {
-                    "status": "CLEAN",
-                    "synthetic_probability": 0.01,
-                    "model_name": "model-backed-inference",
-                },
-                "face_match": {"status": "MATCH", "similarity": 0.98},
-            },
-            "document_profile": {
-                "payroll_dob": date_of_birth,
-                "bvn_dob": date_of_birth,
-                "file_dob": date_of_birth,
-                "appointment_date": appointment_date,
-                "first_salary_date": "2014-10-25",
-                "confirmation_date": "2016-09-15",
-                "last_promotion_date": "2023-01-01",
-                "retirement_date": "2050-12-31",
-                "document_numbers": {
-                    "appointment_letter": f"OG/MOE/{worker_code[-5:]}",
-                    "bvn": bvn,
-                    "staff_id": worker_code,
-                },
-                "required_documents": [
-                    "appointment_letter",
-                    "birth_certificate",
-                    "promotion_letter",
-                    "staff_id_card",
-                ],
-                "submitted_documents": [
-                    "appointment_letter",
-                    "birth_certificate",
-                    "promotion_letter",
-                    "staff_id_card",
-                ],
-            },
+            "preverified_evidence": preverified_evidence,
+            "document_profile": document_profile,
         },
+    }
+
+
+def _preverified_evidence(verification_case: str) -> dict:
+    if verification_case == "fail":
+        return {
+            "liveness": {
+                "status": "FAILED",
+                "confidence": 0.18,
+                "attempts": 3,
+                "challenge": "blink_twice_turn_left",
+            },
+            "deepfake": {
+                "status": "DEEPFAKE_DETECTED",
+                "synthetic_probability": 0.94,
+                "model_name": "model-backed-inference",
+            },
+            "face_match": {"status": "FACE_MISMATCH", "similarity": 0.41},
+            "bvn": {
+                "status": "BVN_MISMATCH",
+                "provider": "SQUAD",
+                "provider_reference": "seeded-failure-case",
+                "resolved_name": "Identity mismatch detected",
+            },
+        }
+    return {
+        "liveness": {
+            "status": "PASSED",
+            "confidence": 0.97,
+            "attempts": 1,
+            "challenge": "blink_twice_turn_left",
+        },
+        "deepfake": {
+            "status": "CLEAN",
+            "synthetic_probability": 0.01,
+            "model_name": "model-backed-inference",
+        },
+        "face_match": {"status": "MATCH", "similarity": 0.98},
+        "bvn": {
+            "status": "BVN_MATCH",
+            "provider": "SQUAD",
+            "provider_reference": "seeded-verified-case",
+        },
+    }
+
+
+def _document_profile(
+    *,
+    worker_code: str,
+    bvn: str | None,
+    date_of_birth: str | None,
+    appointment_date: str,
+    verification_case: str,
+) -> dict:
+    clean_profile = {
+        "payroll_dob": date_of_birth,
+        "bvn_dob": date_of_birth,
+        "file_dob": date_of_birth,
+        "appointment_date": appointment_date,
+        "first_salary_date": "2014-10-25",
+        "confirmation_date": "2016-09-15",
+        "last_promotion_date": "2023-01-01",
+        "retirement_date": "2050-12-31",
+        "document_numbers": {
+            "appointment_letter": f"OG/MOE/{worker_code[-5:]}",
+            "bvn": bvn,
+            "staff_id": worker_code,
+        },
+        "required_documents": [
+            "appointment_letter",
+            "birth_certificate",
+            "promotion_letter",
+            "staff_id_card",
+        ],
+        "submitted_documents": [
+            "appointment_letter",
+            "birth_certificate",
+            "promotion_letter",
+            "staff_id_card",
+        ],
+    }
+    if verification_case != "fail":
+        return clean_profile
+    return {
+        **clean_profile,
+        "bvn_dob": "1980-01-01",
+        "file_dob": "1992-09-22",
+        "appointment_date": "2016-09-15",
+        "first_salary_date": "2014-10-25",
+        "confirmation_date": "2015-05-01",
+        "document_numbers": {
+            **clean_profile["document_numbers"],
+            "appointment_letter": "DUPLICATE-OGUN-RECORD",
+            "staff_id": "UNMATCHED-ID-CARD",
+        },
+        "submitted_documents": ["appointment_letter"],
     }
 
 
@@ -313,7 +386,7 @@ def _normal_worker_record(
     registration_offset = int(rng.integers(0, 21 * 24 * 60))
 
     return {
-        "worker_code": f"EDU-{batch_id}-{index + 1:05d}",
+        "worker_code": _ogun_staff_id(index),
         "full_name": f"{first_name} {last_name}",
         "bvn": _digits(rng, 11),
         "phone": f"080{_digits(rng, 8)}",
@@ -361,7 +434,7 @@ def _ghost_worker_record(
     burst_time = base_time + timedelta(days=25, minutes=cluster)
 
     return {
-        "worker_code": f"EDU-{batch_id}-G{ghost_index + 1:04d}",
+        "worker_code": _ogun_staff_id(index),
         "full_name": f"{first_name} {last_name}",
         "bvn": f"22{cluster:02d}0000000",
         "phone": f"081{cluster:02d}{ghost_index:05d}"[:11],
@@ -391,3 +464,7 @@ def _ghost_worker_record(
 
 def _digits(rng: np.random.Generator, length: int) -> str:
     return "".join(str(int(value)) for value in rng.integers(0, 10, size=length))
+
+
+def _ogun_staff_id(index: int) -> str:
+    return f"OG{index + 1:05d}"

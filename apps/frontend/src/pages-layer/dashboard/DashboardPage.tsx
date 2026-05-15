@@ -233,7 +233,7 @@ export function DashboardPage() {
   function applyBootstrap(result: DemoBootstrapResponse) {
     setSeed(result.seed);
     setAnomalyScan(null);
-    setViqs(Object.fromEntries(result.viqs.map((viq) => [viq.worker_id, viq])));
+    setViqs(latestViqsByWorker(result.viqs));
     setDocumentResults({});
     applyStaffActions(result.staff_actions);
     setExercises(result.exercises);
@@ -265,7 +265,7 @@ export function DashboardPage() {
     if (listedWorkers) {
       setWorkers(listedWorkers);
     }
-    setViqs(Object.fromEntries(listedViqs.map((viq) => [viq.worker_id, viq])));
+    setViqs(latestViqsByWorker(listedViqs));
     applyStaffActions(listedActions);
     setExercises(listedExercises);
     setAdminSummary(summary);
@@ -1669,6 +1669,22 @@ function sortWorkers(records: Worker[]) {
     const rightRank = right.risk_metadata?.demo_verifiable ? 0 : 1;
     return leftRank - rightRank || left.worker_code.localeCompare(right.worker_code);
   });
+}
+
+function latestViqsByWorker(records: Viq[]) {
+  const byWorker: Record<string, Viq> = {};
+  for (const viq of records) {
+    const current = byWorker[viq.worker_id];
+    const nextCreatedAt = typeof viq.signed_payload.created_at === "string" ? viq.signed_payload.created_at : "";
+    const currentCreatedAt =
+      current && typeof current.signed_payload.created_at === "string"
+        ? current.signed_payload.created_at
+        : "";
+    if (!current || new Date(nextCreatedAt).getTime() >= new Date(currentCreatedAt).getTime()) {
+      byWorker[viq.worker_id] = viq;
+    }
+  }
+  return byWorker;
 }
 
 function namesLookRelated(left: string, right: string) {

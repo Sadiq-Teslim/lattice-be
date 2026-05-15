@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.ai.anomaly import PayrollAnomalyDetector, evaluate_anomaly_results
 from app.ai.synthetic_data import (
     SyntheticPayrollConfig,
+    _document_profile,
+    _preverified_evidence,
     generate_synthetic_payroll,
     inject_verified_ogun_records,
 )
@@ -83,6 +85,8 @@ def bootstrap_ogun_demo(db: Session = db_session) -> DemoBootstrapResponse:
             .all()
         )
     else:
+        _normalize_ogun_worker_codes(db, workers)
+        _ensure_ogun_demo_verification_cases(db, workers)
         seed = DemoSeedResponse(
             pay_cycle_id=pay_cycle.id,
             ministry=pay_cycle.ministry,
@@ -90,6 +94,8 @@ def bootstrap_ogun_demo(db: Session = db_session) -> DemoBootstrapResponse:
             injected_ghost_workers=sum(1 for worker in workers if worker.risk_metadata.get("is_injected_ghost")),
         )
 
+    _normalize_ogun_worker_codes(db, workers)
+    _ensure_ogun_demo_verification_cases(db, workers)
     viqs = (
         db.query(VIQ)
         .filter(VIQ.pay_cycle_id == pay_cycle.id)
@@ -126,6 +132,116 @@ def bootstrap_ogun_demo(db: Session = db_session) -> DemoBootstrapResponse:
             actions=staff_actions,
         ),
     )
+
+
+def _normalize_ogun_worker_codes(db: Session, workers: list[Worker]) -> None:
+    if not workers or all(_is_ogun_staff_id(worker.worker_code) for worker in workers):
+        return
+
+    ordered_workers = sorted(workers, key=_ogun_code_sort_key)
+    for worker in ordered_workers:
+        worker.worker_code = f"TMP-{worker.id}"
+    db.flush()
+    for index, worker in enumerate(ordered_workers, start=1):
+        worker.worker_code = f"OG{index:05d}"
+    db.commit()
+
+
+def _is_ogun_staff_id(value: str) -> bool:
+    return len(value) == 7 and value.startswith("OG") and value[2:].isdigit()
+
+
+def _ogun_code_sort_key(worker: Worker) -> tuple[int, str, str]:
+    metadata = worker.risk_metadata or {}
+    if worker.full_name == "Teslim Adetola Sadiq":
+        rank = 0
+    elif metadata.get("demo_verifiable") is True:
+        rank = 1
+    elif metadata.get("is_injected_ghost") is True:
+        rank = 3
+    else:
+        rank = 2
+    return (rank, worker.created_at.isoformat() if worker.created_at else "", worker.id)
+
+
+def _ensure_ogun_demo_verification_cases(db: Session, workers: list[Worker]) -> None:
+    worker_by_code = {worker.worker_code: worker for worker in workers}
+    changed = False
+
+    teslim = worker_by_code.get("OG00001")
+    if teslim is not None:
+        _apply_pass_case(teslim)
+        changed = True
+
+    failing_worker = worker_by_code.get("OG00002")
+    if failing_worker is not None:
+        _apply_fail_case(failing_worker)
+        changed = True
+
+    if changed:
+        db.commit()
+
+
+def _apply_pass_case(worker: Worker) -> None:
+    worker.full_name = "Teslim Adetola Sadiq"
+    worker.bvn = settings.demo_teslim_bvn or worker.bvn
+    worker.phone = settings.demo_teslim_phone or worker.phone
+    worker.email = settings.demo_teslim_email or worker.email
+    worker.date_of_birth = settings.demo_teslim_dob or worker.date_of_birth
+    worker.gender = worker.gender or "1"
+    worker.address = "Ogun State Ministry of Education staff file"
+    worker.department = "Teacher Development"
+    worker.salary_amount = Decimal("185000")
+    worker.bank_code = settings.demo_teslim_bank_code or worker.bank_code
+    worker.bank_account_number = settings.demo_teslim_account_number or worker.bank_account_number
+    worker.bank_account_name = "Teslim Adetola Sadiq"
+    worker.risk_metadata = {
+        **(worker.risk_metadata or {}),
+        "source": "seeded_ogun_staff_file",
+        "demo_verifiable": True,
+        "demo_verification_case": "pass",
+        "is_injected_ghost": False,
+        "ghost_cluster": None,
+        "preverified_evidence": _preverified_evidence("pass"),
+        "document_profile": _document_profile(
+            worker_code=worker.worker_code,
+            bvn=worker.bvn,
+            date_of_birth=str(worker.date_of_birth) if worker.date_of_birth else None,
+            appointment_date="2014-09-15",
+            verification_case="pass",
+        ),
+    }
+
+
+def _apply_fail_case(worker: Worker) -> None:
+    worker.full_name = "Adebayo Ogunleye"
+    worker.bvn = worker.bvn or "22800000002"
+    worker.phone = worker.phone or "08030000002"
+    worker.email = worker.email or "adebayo.ogunleye@ogunstate.gov.ng"
+    worker.date_of_birth = "1985-04-12"
+    worker.gender = worker.gender or "1"
+    worker.address = "Abeokuta South, Ogun State"
+    worker.department = "Secondary Education"
+    worker.salary_amount = Decimal("142500")
+    worker.bank_code = None
+    worker.bank_account_number = None
+    worker.bank_account_name = None
+    worker.risk_metadata = {
+        **(worker.risk_metadata or {}),
+        "source": "seeded_ogun_staff_file",
+        "demo_verifiable": True,
+        "demo_verification_case": "fail",
+        "is_injected_ghost": False,
+        "ghost_cluster": None,
+        "preverified_evidence": _preverified_evidence("fail"),
+        "document_profile": _document_profile(
+            worker_code=worker.worker_code,
+            bvn=worker.bvn,
+            date_of_birth=str(worker.date_of_birth) if worker.date_of_birth else None,
+            appointment_date="2014-09-15",
+            verification_case="fail",
+        ),
+    }
 
 
 def _create_demo_batch(payload: DemoSeedRequest, db: Session) -> DemoSeedResponse:
