@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle, FileCheck2, Smartphone, UploadCloud, WifiOff } from "lucide-react";
+import { CheckCircle, FileCheck2, Smartphone, UploadCloud, WifiOff } from "lucide-react";
+import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics } from "@/features/liveness-camera";
 import { latticeApi } from "@/shared/api/client";
 import type {
   DocumentConsistencyResponse,
   LivenessEvaluationResponse,
+  PublicDocumentUploadResponse,
   PublicOtpSendResponse,
   PublicVerificationPayCycle,
   PublicVerificationWorker,
@@ -31,20 +33,19 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const [session, setSession] = useState<VerificationSession | null>(null);
   const [otpChallenge, setOtpChallenge] = useState<PublicOtpSendResponse | null>(null);
   const [otp, setOtp] = useState<string[]>(Array.from({ length: 6 }, () => ""));
-  const [blinkCount, setBlinkCount] = useState(0);
-  const [turned, setTurned] = useState(false);
+  const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [liveness, setLiveness] = useState<LivenessEvaluationResponse | null>(null);
-  const [documents, setDocuments] = useState<DocumentConsistencyResponse | null>(null);
+  const [documents, setDocuments] = useState<DocumentConsistencyResponse | PublicDocumentUploadResponse | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [verificationNotes, setVerificationNotes] = useState<string[]>([]);
   const [viq, setViq] = useState<Viq | null>(null);
   const [processingIndex, setProcessingIndex] = useState(0);
   const [offline, setOffline] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const livenessCameraRef = useRef<LivenessCameraHandle | null>(null);
+  const livenessFrameRef = useRef<File | null>(null);
 
   const currentProgress =
     step === "otp" ? 0 : step === "liveness" ? 1 : step === "documents" || step === "processing" ? 2 : step === "result" ? 4 : 0;
@@ -71,15 +72,6 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     }
     void prepareDemoSession();
   }, [sessionToken]);
-
-  useEffect(() => {
-    if (step !== "liveness") {
-      stopCamera();
-      return;
-    }
-    void startCamera();
-    return stopCamera;
-  }, [step]);
 
   async function loadSession(token: string) {
     setError(null);
@@ -168,45 +160,17 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     }
   }
 
-  async function startCamera() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("This browser does not allow camera access.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 540 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraReady(true);
-      setCameraError(null);
-    } catch {
-      setCameraReady(false);
-      setCameraError("Camera permission is required for proof of life.");
-    }
-  }
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    setCameraReady(false);
-  }
-
   async function runLivenessCheck() {
-    if (!activeToken || !cameraReady) return;
+    if (!activeToken || !livenessMetrics?.passed) return;
     setBusy(true);
     setError(null);
     try {
+      livenessFrameRef.current = await livenessCameraRef.current?.captureFrame() ?? null;
       const payload = {
         challenge: "blink_twice_turn_left",
-        blink_count: blinkCount,
-        head_turn_degrees: turned ? 18 : 0,
-        confidence: blinkCount >= 2 && turned ? 0.92 : 0.42,
+        blink_count: livenessMetrics.blinkCount,
+        head_turn_degrees: livenessMetrics.headTurnDegrees,
+        confidence: livenessMetrics.confidence,
         attempts: 1,
         captured_at: new Date().toISOString(),
       };
@@ -229,14 +193,23 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const [documentResult, identityEvidence, frame] = await Promise.all([
-        latticeApi.evaluatePublicVerificationDocuments(activeToken),
+      const [documentResult, identityEvidence] = await Promise.all([
+        documentFiles.length
+          ? latticeApi.uploadPublicVerificationDocuments(activeToken, documentFiles)
+          : latticeApi.evaluatePublicVerificationDocuments(activeToken),
         latticeApi.verifyPublicVerificationIdentity(activeToken).catch(() => null),
-        captureCameraFrame().catch(() => null),
       ]);
+      const frame = livenessFrameRef.current;
       const deepfakeResult = frame
         ? await latticeApi.classifyDeepfakeFrame(frame).catch(() => null)
         : null;
+      const faceResult = frame
+        ? await latticeApi.verifyPublicVerificationFace(activeToken, frame).catch(() => null)
+        : null;
+      setVerificationNotes([
+        ...(frame && !deepfakeResult ? ["Media authenticity model unavailable; HR review will keep that signal pending."] : []),
+        ...(frame && !faceResult ? ["Face-match model unavailable; HR review will keep that signal pending."] : []),
+      ]);
       const capturedAt = new Date().toISOString();
       setDocuments(documentResult);
       await latticeApi.submitPublicVerificationEvidence(activeToken, {
@@ -258,6 +231,15 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
               },
             }
           : {}),
+        ...(faceResult
+          ? {
+              face_match: {
+                status: faceResult.status === "FACE_MISMATCH" ? "FACE_MISMATCH" : "MATCH",
+                similarity: faceResult.similarity,
+                captured_at: capturedAt,
+              },
+            }
+          : {}),
         ...(identityEvidence ? { bvn: identityEvidence } : {}),
         documents: {
           status: documentResult.status,
@@ -273,19 +255,6 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     } finally {
       setBusy(false);
     }
-  }
-
-  async function captureCameraFrame(): Promise<File | null> {
-    const video = videoRef.current;
-    if (!video || !video.videoWidth || !video.videoHeight) return null;
-    const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
-    return blob ? new File([blob], "liveness-frame.jpg", { type: "image/jpeg" }) : null;
   }
 
   async function finalizeSession() {
@@ -416,23 +385,10 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
         {step === "liveness" ? (
           <Card className={styles.screen}>
             <h1>Face check</h1>
-            <p>{blinkCount < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
-            <div className={styles.camera}>
-              <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
-              {!cameraReady ? <Camera size={56} strokeWidth={1.5} /> : null}
-              <div className={styles.mesh} />
-            </div>
-            {cameraError ? <div className={styles.error}>{cameraError}</div> : null}
-            <div className={styles.livenessGrid}>
-              <Button variant="secondary" onClick={() => setBlinkCount((count) => Math.min(2, count + 1))}>
-                Blink {blinkCount}/2
-              </Button>
-              <Button variant="secondary" onClick={() => setTurned(true)}>
-                {turned ? "Head Turned" : "Turn Left"}
-              </Button>
-            </div>
+            <p>{(livenessMetrics?.blinkCount ?? 0) < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
+            <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {liveness ? <p className={styles.meta}>Proof of life: {liveness.status}</p> : null}
-            <Button fullWidth disabled={blinkCount < 2 || !turned || !cameraReady} loading={busy} onClick={runLivenessCheck}>
+            <Button fullWidth disabled={!livenessMetrics?.passed} loading={busy} onClick={runLivenessCheck}>
               Submit Face Check
             </Button>
           </Card>
@@ -442,7 +398,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
           <Card className={styles.screen}>
             <UploadCloud size={36} strokeWidth={1.5} />
             <h1>Document consistency</h1>
-            <p>Confirm your personnel file so HR can compare dates, identity records, and staff documents.</p>
+            <p>Upload your staff documents so HR can compare dates, identity records, and personnel-file evidence.</p>
             <div className={styles.documentGrid}>
               <div>
                 <span>Staff ID</span>
@@ -461,8 +417,23 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
                 <strong>{workerAmount}</strong>
               </div>
             </div>
+            <label className={styles.fileInput}>
+              Required documents
+              <input
+                accept=".pdf,.txt,.md,.csv,image/*"
+                multiple
+                type="file"
+                onChange={(event) => setDocumentFiles(Array.from(event.target.files ?? []))}
+              />
+              <span>{documentFiles.length ? `${documentFiles.length} file(s) selected` : "PDF or text files work best for extraction"}</span>
+            </label>
             {documents ? <p className={styles.meta}>Documents: {documents.status}</p> : null}
-            <Button fullWidth loading={busy} onClick={runDocumentCheck}>Submit Documents</Button>
+            {verificationNotes.length ? (
+              <div className={styles.noteList}>
+                {verificationNotes.map((note) => <span key={note}>{note}</span>)}
+              </div>
+            ) : null}
+            <Button fullWidth disabled={!documentFiles.length} loading={busy} onClick={runDocumentCheck}>Submit Documents</Button>
           </Card>
         ) : null}
 

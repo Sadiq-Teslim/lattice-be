@@ -143,3 +143,24 @@ class PublicOtpVerifyResponse(BaseModel):
     status: str
     attempts: int
     verified: bool
+
+
+class PublicDocumentUploadResponse(BaseModel):
+    status: str
+    severity: str
+    flags: list[dict]
+    summary: str
+    submitted_documents: list[str]
+    extracted_documents: list[dict]
+    extracted_dates: list[str]
+    text_excerpt: str | None = None
+
+
+class PublicFaceVerificationResponse(BaseModel):
+    status: str
+    similarity: float
+    threshold: float
+    model_name: str
+    model_version: str
+    reference_source: str
+    candidate_preprocessing: dict

@@ -3,9 +3,10 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.ai.document_extraction import UploadedDocument, extract_staff_document_payload
 from app.core.config import settings
 from app.core.scoring import PASS
 from app.core.security import sign_payload
@@ -34,6 +35,7 @@ from app.schemas.admin import (
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 db_session = Depends(get_db)
+upload_files = File(default=[])
 
 
 @router.get("/staff-actions", response_model=list[StaffActionResponse])
@@ -409,6 +411,108 @@ def create_public_exercise_submission(
                 "exercise_id": exercise.id,
                 "worker_code": submission.worker_code,
                 "decision": submission.decision,
+            },
+        )
+    )
+    db.commit()
+    db.refresh(submission)
+    return submission
+
+
+@router.post(
+    "/public/verification-exercises/{public_token}/submissions/upload",
+    response_model=ExerciseSubmissionResponse,
+)
+async def create_public_exercise_upload_submission(
+    public_token: str,
+    full_name: str = Form(...),
+    worker_code: str | None = Form(default=None),
+    phone: str | None = Form(default=None),
+    liveness_status: str | None = Form(default=None),
+    files: list[UploadFile] = upload_files,
+    db: Session = db_session,
+) -> ExerciseSubmissionResponse:
+    exercise = (
+        db.query(VerificationExercise)
+        .filter(
+            VerificationExercise.public_token == public_token,
+            VerificationExercise.status == "PUBLISHED",
+        )
+        .one_or_none()
+    )
+    if exercise is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="published verification exercise not found",
+        )
+
+    worker = None
+    if worker_code:
+        worker = (
+            db.query(Worker)
+            .filter(
+                Worker.worker_code == worker_code,
+                Worker.ministry == exercise.ministry,
+            )
+            .one_or_none()
+        )
+
+    uploaded_documents = [
+        UploadedDocument(
+            filename=file.filename or "uploaded-document",
+            content_type=file.content_type,
+            content=await file.read(),
+        )
+        for file in files[:10]
+    ]
+    extracted = extract_staff_document_payload(uploaded_documents)
+    required = set(exercise.documents or [])
+    submitted = set(extracted["submitted_documents"])
+    missing = sorted(required - submitted) if required else []
+    document_status = "DOCUMENT_INCOMPLETE" if missing else "DOCUMENTS_SUBMITTED"
+    needs_review = bool(missing) or (
+        "proof_of_life" in exercise.rules and liveness_status != "PASSED"
+    )
+
+    submission = ExerciseSubmission(
+        exercise_id=exercise.id,
+        worker_id=worker.id if worker is not None else None,
+        worker_code=worker_code,
+        full_name=worker.full_name if worker is not None else full_name,
+        document_status=document_status,
+        liveness_status=liveness_status,
+        decision="REVIEW" if needs_review else "PASS",
+        payload={
+            "phone": phone,
+            "exercise_name": exercise.name,
+            "documents_required": exercise.documents,
+            "documents_submitted": sorted(submitted),
+            "missing_documents": missing,
+            "uploaded_files": [
+                {
+                    "filename": document["filename"],
+                    "content_type": document["content_type"],
+                    "document_type": document["document_type"],
+                    "extraction_method": document["extraction_method"],
+                    "text_characters": document["text_characters"],
+                }
+                for document in extracted["extracted_documents"]
+            ],
+            "extracted_dates": extracted["extracted_dates"],
+            "rules": exercise.rules,
+            "submitted_at": datetime.utcnow().isoformat(),
+        },
+    )
+    db.add(submission)
+    db.add(
+        AuditLog(
+            worker_id=submission.worker_id,
+            event_type="PUBLIC_VERIFICATION_EXERCISE_UPLOADED",
+            payload={
+                "exercise_id": exercise.id,
+                "worker_code": submission.worker_code,
+                "decision": submission.decision,
+                "document_status": document_status,
             },
         )
     )

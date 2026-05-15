@@ -4,12 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
-  Camera,
   CheckCircle,
   FileCheck2,
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
+import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics } from "@/features/liveness-camera";
 import { latticeApi } from "@/shared/api/client";
 import type { ExerciseSubmission, VerificationExercise } from "@/shared/api/types";
 import { Button, Card, StepProgress } from "@/shared/ui";
@@ -30,16 +30,13 @@ export function ExerciseVerifyPage() {
   const [phone, setPhone] = useState("");
   const [checkedDocuments, setCheckedDocuments] = useState<Set<string>>(new Set());
   const [livenessDone, setLivenessDone] = useState(false);
-  const [blinkCount, setBlinkCount] = useState(0);
-  const [turned, setTurned] = useState(false);
-  const [cameraReady, setCameraReady] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
+  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
   const [submission, setSubmission] = useState<ExerciseSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const livenessCameraRef = useRef<LivenessCameraHandle | null>(null);
 
   const requiresLiveness = exercise?.rules.includes("proof_of_life") ?? false;
   const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "liveness" ? 2 : step === "review" || step === "submitted" ? 3 : 0;
@@ -52,14 +49,6 @@ export function ExerciseVerifyPage() {
     void loadExercise();
   }, [token, searchParams]);
 
-  useEffect(() => {
-    if (step !== "liveness") {
-      stopCamera();
-      return;
-    }
-    void startCamera();
-    return stopCamera;
-  }, [step]);
 
   async function loadExercise() {
     setError(null);
@@ -92,45 +81,16 @@ export function ExerciseVerifyPage() {
     });
   }
 
-  async function startCamera() {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError("This browser does not allow camera access.");
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 540 } },
-        audio: false,
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-      setCameraReady(true);
-      setCameraError(null);
-    } catch {
-      setCameraReady(false);
-      setCameraError("Camera permission is required for proof of life.");
-    }
-  }
-
-  function stopCamera() {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-    setCameraReady(false);
-  }
-
   async function runLivenessCheck() {
-    if (!cameraReady) return;
+    if (!livenessMetrics?.passed) return;
     setLoading(true);
     setError(null);
     try {
       const result = await latticeApi.evaluateLiveness({
         challenge: "blink_twice_turn_left",
-        blink_count: blinkCount,
-        head_turn_degrees: turned ? 18 : 0,
-        confidence: blinkCount >= 2 && turned ? 0.92 : 0.42,
+        blink_count: livenessMetrics.blinkCount,
+        head_turn_degrees: livenessMetrics.headTurnDegrees,
+        confidence: livenessMetrics.confidence,
         attempts: 1,
         captured_at: new Date().toISOString(),
       });
@@ -151,23 +111,12 @@ export function ExerciseVerifyPage() {
     setLoading(true);
     setError(null);
     try {
-      const missingDocuments = exercise.documents.filter((item) => !checkedDocuments.has(item));
-      const needsReview = missingDocuments.length > 0 || (requiresLiveness && !livenessDone);
-      const result = await latticeApi.submitPublicVerificationExercise(token, {
+      const result = await latticeApi.submitPublicVerificationExerciseUpload(token, {
         worker_code: workerCode || undefined,
         full_name: fullName,
-        document_status: missingDocuments.length ? "DOCUMENT_INCOMPLETE" : "DOCUMENTS_SUBMITTED",
+        phone,
         liveness_status: requiresLiveness ? (livenessDone ? "PASSED" : "PENDING") : "NOT_REQUIRED",
-        decision: needsReview ? "REVIEW" : "PASS",
-        payload: {
-          phone,
-          exercise_name: exercise.name,
-          documents_required: exercise.documents,
-          documents_submitted: Array.from(checkedDocuments),
-          missing_documents: missingDocuments,
-          rules: exercise.rules,
-          submitted_at: new Date().toISOString(),
-        },
+        files: documentFiles,
       });
       setSubmission(result);
       setStep("submitted");
@@ -277,9 +226,18 @@ export function ExerciseVerifyPage() {
                 </button>
               )) : <span>No documents are required for this exercise.</span>}
             </div>
+            <label>
+              Upload documents
+              <input
+                accept=".pdf,.txt,.md,.csv,image/*"
+                multiple
+                type="file"
+                onChange={(event) => setDocumentFiles(Array.from(event.target.files ?? []))}
+              />
+            </label>
             <Button
               fullWidth
-              disabled={!documentComplete}
+              disabled={!documentComplete || !documentFiles.length}
               onClick={() => setStep(requiresLiveness ? "liveness" : "review")}
             >
               Continue
@@ -289,25 +247,11 @@ export function ExerciseVerifyPage() {
 
         {step === "liveness" ? (
           <Card className={styles.screen}>
-            <Camera size={36} strokeWidth={1.5} />
             <h1>Proof of life</h1>
-            <p>{blinkCount < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
-            <div className={styles.camera}>
-              <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
-              {!cameraReady ? <Camera size={56} strokeWidth={1.5} /> : null}
-              <div className={styles.mesh} />
-            </div>
-            {cameraError ? <div className={styles.error}>{cameraError}</div> : null}
-            <div className={styles.livenessGrid}>
-              <Button variant="secondary" onClick={() => setBlinkCount((count) => Math.min(2, count + 1))}>
-                Blink {blinkCount}/2
-              </Button>
-              <Button variant="secondary" onClick={() => setTurned(true)}>
-                {turned ? "Head Turned" : "Turn Left"}
-              </Button>
-            </div>
+            <p>{(livenessMetrics?.blinkCount ?? 0) < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
+            <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {livenessStatus ? <p>Proof of life: {livenessStatus}</p> : null}
-            <Button fullWidth disabled={blinkCount < 2 || !turned || !cameraReady} loading={loading} onClick={runLivenessCheck}>
+            <Button fullWidth disabled={!livenessMetrics?.passed} loading={loading} onClick={runLivenessCheck}>
               Run Face Check
             </Button>
             <Button fullWidth disabled={!livenessDone} onClick={() => setStep("review")}>

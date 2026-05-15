@@ -10,6 +10,8 @@ import type {
   PayCycle,
   PublicOtpSendResponse,
   PublicOtpVerifyResponse,
+  PublicDocumentUploadResponse,
+  PublicFaceVerificationResponse,
   PublicVerificationSessionResponse,
   ReleaseEligibleResponse,
   SquadAccountLookupResponse,
@@ -206,6 +208,31 @@ export const latticeApi = {
       },
     ),
 
+  submitPublicVerificationExerciseUpload: (
+    token: string,
+    payload: {
+      worker_code?: string;
+      full_name: string;
+      phone?: string;
+      liveness_status?: string;
+      files: File[];
+    },
+  ) => {
+    const body = new FormData();
+    body.set("full_name", payload.full_name);
+    if (payload.worker_code) body.set("worker_code", payload.worker_code);
+    if (payload.phone) body.set("phone", payload.phone);
+    if (payload.liveness_status) body.set("liveness_status", payload.liveness_status);
+    payload.files.forEach((file) => body.append("files", file));
+    return request<ExerciseSubmission>(
+      `/admin/public/verification-exercises/${encodeURIComponent(token)}/submissions/upload`,
+      {
+        method: "POST",
+        body,
+      },
+    );
+  },
+
   listExerciseSubmissions: (exerciseId: string) =>
     request<ExerciseSubmission[]>(
       `/admin/verification-exercises/${encodeURIComponent(exerciseId)}/submissions`,
@@ -359,11 +386,29 @@ export const latticeApi = {
       { method: "POST" },
     ),
 
+  uploadPublicVerificationDocuments: (sessionToken: string, files: File[]) => {
+    const body = new FormData();
+    files.forEach((file) => body.append("files", file));
+    return request<PublicDocumentUploadResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/documents/upload`,
+      { method: "POST", body },
+    );
+  },
+
   verifyPublicVerificationIdentity: (sessionToken: string) =>
     request<Record<string, unknown> | null>(
       `/verification/public/sessions/${encodeURIComponent(sessionToken)}/identity/verify`,
       { method: "POST" },
     ),
+
+  verifyPublicVerificationFace: (sessionToken: string, file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<PublicFaceVerificationResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/face/verify`,
+      { method: "POST", body },
+    );
+  },
 
   finalizePublicVerificationSession: (sessionToken: string) =>
     request<VerificationFinalizeResponse>(

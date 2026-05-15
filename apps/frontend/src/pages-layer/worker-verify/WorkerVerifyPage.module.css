@@ -204,6 +204,40 @@
   font-size: 15px;
 }
 
+.fileInput {
+  display: grid;
+  gap: var(--space-sm);
+  color: var(--color-text-secondary);
+  font-weight: 800;
+}
+
+.fileInput input {
+  width: 100%;
+  min-height: 52px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: white;
+  color: var(--color-text-primary);
+  padding: 12px;
+  font-weight: 700;
+}
+
+.fileInput span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.noteList {
+  display: grid;
+  gap: var(--space-xs);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-button);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 800;
+}
+
 .checks {
   display: grid;
   gap: var(--space-md);

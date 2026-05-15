@@ -97,6 +97,23 @@ export type DocumentConsistencyResponse = {
   summary: string;
 };
 
+export type PublicDocumentUploadResponse = DocumentConsistencyResponse & {
+  submitted_documents: string[];
+  extracted_documents: Array<Record<string, unknown>>;
+  extracted_dates: string[];
+  text_excerpt: string | null;
+};
+
+export type PublicFaceVerificationResponse = {
+  status: "MATCH" | "FACE_MISMATCH" | string;
+  similarity: number;
+  threshold: number;
+  model_name: string;
+  model_version: string;
+  reference_source: string;
+  candidate_preprocessing: Record<string, unknown>;
+};
+
 export type VerificationSession = {
   id: string;
   worker_id: string;

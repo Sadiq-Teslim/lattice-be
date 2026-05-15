@@ -1,9 +1,14 @@
 from datetime import date, datetime
+from io import BytesIO
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.orm import Session
 
 from app.ai.document_consistency import evaluate_document_consistency
+from app.ai.document_extraction import UploadedDocument, extract_staff_document_payload
+from app.ai.face_match import FaceMatchUnavailable, compare_templates, get_face_embedding_service
+from app.core.config import settings
 from app.db.models import OtpChallenge, VerificationSession, Worker
 from app.db.session import get_db
 from app.schemas.document_consistency import (
@@ -15,6 +20,8 @@ from app.schemas.verification import (
     PublicOtpSendResponse,
     PublicOtpVerifyRequest,
     PublicOtpVerifyResponse,
+    PublicDocumentUploadResponse,
+    PublicFaceVerificationResponse,
     PublicPayCycleResponse,
     PublicVerificationSessionResponse,
     PublicWorkerVerificationResponse,
@@ -30,6 +37,8 @@ from app.services.verification_orchestrator import VerificationOrchestrator
 
 router = APIRouter(prefix="/verification", tags=["verification"])
 db_session = Depends(get_db)
+upload_files = File(...)
+upload_file = File(...)
 
 
 @router.post(
@@ -172,6 +181,66 @@ def evaluate_public_session_documents(
 
 
 @router.post(
+    "/public/sessions/{session_token}/documents/upload",
+    response_model=PublicDocumentUploadResponse,
+)
+async def upload_public_session_documents(
+    session_token: str,
+    files: list[UploadFile] = upload_files,
+    db: Session = db_session,
+) -> PublicDocumentUploadResponse:
+    session = _get_public_session(db, session_token)
+    _require_verified_otp(db, session)
+    if not files:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="at least one document is required",
+        )
+    documents = [
+        UploadedDocument(
+            filename=file.filename or "uploaded-document",
+            content_type=file.content_type,
+            content=await file.read(),
+        )
+        for file in files[:10]
+    ]
+    extracted = extract_staff_document_payload(documents)
+    worker = session.worker
+    cohort = db.query(Worker).filter(Worker.ministry == worker.ministry).all()
+    profile = worker.risk_metadata.get("document_profile") if worker.risk_metadata else None
+    profile_payload = profile if isinstance(profile, dict) else {}
+    uploaded_fields = extracted.get("fields") if isinstance(extracted.get("fields"), dict) else {}
+    required_documents = profile_payload.get("required_documents") or []
+    worker_record = _document_record(
+        worker,
+        overrides={
+            **uploaded_fields,
+            "submitted_documents": extracted["submitted_documents"],
+            "required_documents": required_documents,
+            "document_numbers": {
+                **_string_map(profile_payload.get("document_numbers")),
+                **_string_map(extracted.get("document_numbers")),
+            },
+        },
+    )
+    payload = DocumentConsistencyRequest(
+        worker_record=worker_record,
+        cohort_records=[_document_record(item) for item in cohort],
+    )
+    result = evaluate_document_consistency(payload)
+    return PublicDocumentUploadResponse(
+        status=result["status"],
+        severity=result["severity"],
+        flags=result["flags"],
+        summary=result["summary"],
+        submitted_documents=extracted["submitted_documents"],
+        extracted_documents=extracted["extracted_documents"],
+        extracted_dates=extracted["extracted_dates"],
+        text_excerpt=extracted["text_excerpt"] or None,
+    )
+
+
+@router.post(
     "/public/sessions/{session_token}/identity/verify",
     response_model=BvnEvidence | None,
 )
@@ -185,6 +254,58 @@ def verify_public_session_identity(
     if evidence is None:
         return None
     return BvnEvidence(**evidence)
+
+
+@router.post(
+    "/public/sessions/{session_token}/face/verify",
+    response_model=PublicFaceVerificationResponse,
+)
+async def verify_public_session_face(
+    session_token: str,
+    file: UploadFile = upload_file,
+    db: Session = db_session,
+) -> PublicFaceVerificationResponse:
+    session = _get_public_session(db, session_token)
+    _require_verified_otp(db, session)
+    image = await _read_image(file)
+    try:
+        service = get_face_embedding_service()
+    except FaceMatchUnavailable as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+
+    candidate_template = service.embed(image)
+    reference_template = session.worker.biometric_template
+    if not reference_template:
+        session.worker.biometric_template = candidate_template
+        db.commit()
+        db.refresh(session.worker)
+        return PublicFaceVerificationResponse(
+            status="MATCH",
+            similarity=1.0,
+            threshold=settings.face_match_threshold,
+            model_name=candidate_template["model_name"],
+            model_version=candidate_template["model_version"],
+            reference_source="enrolled_from_live_capture",
+            candidate_preprocessing=candidate_template.get("preprocessing", {}),
+        )
+
+    comparison = compare_templates(
+        reference_template=reference_template,
+        candidate_template=candidate_template,
+        threshold=settings.face_match_threshold,
+    )
+    return PublicFaceVerificationResponse(
+        status=comparison["status"],
+        similarity=comparison["similarity"],
+        threshold=comparison["threshold"],
+        model_name=comparison["model_name"],
+        model_version=comparison["model_version"],
+        reference_source="stored_worker_template",
+        candidate_preprocessing=comparison["candidate_preprocessing"],
+    )
 
 
 @router.post(
@@ -266,9 +387,11 @@ def _last4(value: str | None) -> str:
     return value[-4:].rjust(4, "*")
 
 
-def _document_record(worker: Worker) -> StaffDocumentRecord:
+def _document_record(worker: Worker, overrides: dict | None = None) -> StaffDocumentRecord:
     profile = worker.risk_metadata.get("document_profile") if worker.risk_metadata else None
     profile_payload = profile if isinstance(profile, dict) else {}
+    if overrides:
+        profile_payload = {**profile_payload, **overrides}
     return StaffDocumentRecord(
         worker_id=worker.worker_code,
         full_name=worker.full_name,
@@ -316,3 +439,14 @@ def _date_value(value: object) -> date | None:
         except ValueError:
             continue
     return None
+
+
+async def _read_image(file: UploadFile) -> Image.Image:
+    content = await file.read()
+    try:
+        return Image.open(BytesIO(content)).convert("RGB")
+    except UnidentifiedImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"{file.filename} is not a valid image",
+        ) from exc

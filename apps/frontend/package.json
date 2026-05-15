@@ -12,6 +12,7 @@
   "dependencies": {
     "@mantine/core": "^7.17.8",
     "@mantine/hooks": "^7.17.8",
+    "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "lucide-react": "^0.468.0",
     "next": "^15.0.0",
     "react": "^19.0.0",
