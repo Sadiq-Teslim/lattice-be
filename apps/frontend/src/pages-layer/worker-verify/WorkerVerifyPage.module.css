@@ -204,27 +204,56 @@
   font-size: 15px;
 }
 
-.fileInput {
+.documentUploadList {
   display: grid;
   gap: var(--space-sm);
-  color: var(--color-text-secondary);
-  font-weight: 800;
 }
 
-.fileInput input {
-  width: 100%;
-  min-height: 52px;
+.documentUploadRow {
+  display: grid;
+  gap: var(--space-sm);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-button);
   background: white;
   color: var(--color-text-primary);
-  padding: 12px;
+  padding: var(--space-md);
+  font-weight: 800;
+}
+
+.documentUploadRow.uploaded {
+  border-color: var(--color-brand);
+  background: #ecfdf3;
+  color: var(--color-brand);
+}
+
+.documentUploadHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.documentUploadHeader strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.documentUploadRow input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: white;
+  color: var(--color-text-primary);
+  padding: 10px;
   font-weight: 700;
 }
 
-.fileInput span {
+.documentUploadRow small {
+  min-width: 0;
+  overflow-wrap: anywhere;
   color: var(--color-text-secondary);
   font-size: 14px;
+  font-weight: 700;
 }
 
 .noteList {

@@ -28,11 +28,10 @@ export function ExerciseVerifyPage() {
   const [workerCode, setWorkerCode] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const [checkedDocuments, setCheckedDocuments] = useState<Set<string>>(new Set());
   const [livenessDone, setLivenessDone] = useState(false);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
-  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>({});
   const [submission, setSubmission] = useState<ExerciseSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -42,8 +41,8 @@ export function ExerciseVerifyPage() {
   const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "liveness" ? 2 : step === "review" || step === "submitted" ? 3 : 0;
   const documentComplete = useMemo(() => {
     const required = exercise?.documents ?? [];
-    return required.length === 0 || required.every((item) => checkedDocuments.has(item));
-  }, [checkedDocuments, exercise]);
+    return required.length === 0 || required.every((item) => Boolean(documentFiles[item]));
+  }, [documentFiles, exercise]);
 
   useEffect(() => {
     void loadExercise();
@@ -55,14 +54,14 @@ export function ExerciseVerifyPage() {
     const embeddedExercise = decodeExerciseParam(searchParams.get("exercise"));
     if (embeddedExercise) {
       setExercise(embeddedExercise);
-      setCheckedDocuments(new Set(embeddedExercise.documents.length ? [] : ["No documents required"]));
+      setDocumentFiles(createDocumentFileState(embeddedExercise.documents));
       setStep("identity");
     }
 
     try {
       const result = await latticeApi.getPublicVerificationExercise(token);
       setExercise(result);
-      setCheckedDocuments(new Set(result.documents.length ? [] : ["No documents required"]));
+      setDocumentFiles(createDocumentFileState(result.documents));
       setStep("identity");
     } catch (err) {
       if (!embeddedExercise) {
@@ -72,13 +71,8 @@ export function ExerciseVerifyPage() {
     }
   }
 
-  function toggleDocument(document: string) {
-    setCheckedDocuments((current) => {
-      const next = new Set(current);
-      if (next.has(document)) next.delete(document);
-      else next.add(document);
-      return next;
-    });
+  function setDocumentFile(document: string, file: File | null) {
+    setDocumentFiles((current) => ({ ...current, [document]: file }));
   }
 
   async function runLivenessCheck() {
@@ -111,12 +105,13 @@ export function ExerciseVerifyPage() {
     setLoading(true);
     setError(null);
     try {
+      const files = Object.values(documentFiles).filter((file): file is File => Boolean(file));
       const result = await latticeApi.submitPublicVerificationExerciseUpload(token, {
         worker_code: workerCode || undefined,
         full_name: fullName,
         phone,
         liveness_status: requiresLiveness ? (livenessDone ? "PASSED" : "PENDING") : "NOT_REQUIRED",
-        files: documentFiles,
+        files,
       });
       setSubmission(result);
       setStep("submitted");
@@ -165,7 +160,6 @@ export function ExerciseVerifyPage() {
           <span>Decision: {submission.decision}</span>
           <span>Documents: {submission.document_status}</span>
           <span>Liveness: {submission.liveness_status}</span>
-          <Button fullWidth onClick={() => setStep("identity")}>Done</Button>
         </section>
       </main>
     );
@@ -178,7 +172,7 @@ export function ExerciseVerifyPage() {
           <img alt="Ogun State Government" src="/ogun-logo.png" />
           <div>
             <strong>{exercise.name}</strong>
-            <span>{exercise.ministry}</span>
+            <span>{displayMinistryName(exercise.ministry)}</span>
           </div>
         </header>
 
@@ -212,32 +206,29 @@ export function ExerciseVerifyPage() {
           <Card className={styles.screen}>
             <UploadCloud size={36} strokeWidth={1.5} />
             <h1>Submit required documents</h1>
-            <p>Confirm each document you are submitting for this verification exercise.</p>
-            <div className={styles.checkList}>
+            <p>Upload each document requested by HR. Every file is checked against your staff record.</p>
+            <div className={styles.documentUploadList}>
               {exercise.documents.length ? exercise.documents.map((document) => (
-                <button
-                  className={checkedDocuments.has(document) ? styles.selected : ""}
+                <label
+                  className={`${styles.documentUploadRow} ${documentFiles[document] ? styles.uploaded : ""}`}
                   key={document}
-                  onClick={() => toggleDocument(document)}
-                  type="button"
                 >
-                  <CheckCircle size={18} strokeWidth={1.5} />
-                  {document}
-                </button>
+                  <span className={styles.documentUploadHeader}>
+                    {documentFiles[document] ? <CheckCircle size={18} strokeWidth={1.5} /> : <UploadCloud size={18} strokeWidth={1.5} />}
+                    <strong>{document}</strong>
+                  </span>
+                  <input
+                    accept=".pdf,.txt,.md,.csv,image/*"
+                    type="file"
+                    onChange={(event) => setDocumentFile(document, event.target.files?.[0] ?? null)}
+                  />
+                  <small>{documentFiles[document]?.name ?? "PDF, image, or text file required"}</small>
+                </label>
               )) : <span>No documents are required for this exercise.</span>}
             </div>
-            <label>
-              Upload documents
-              <input
-                accept=".pdf,.txt,.md,.csv,image/*"
-                multiple
-                type="file"
-                onChange={(event) => setDocumentFiles(Array.from(event.target.files ?? []))}
-              />
-            </label>
             <Button
               fullWidth
-              disabled={!documentComplete || !documentFiles.length}
+              disabled={!documentComplete}
               onClick={() => setStep(requiresLiveness ? "liveness" : "review")}
             >
               Continue
@@ -271,7 +262,7 @@ export function ExerciseVerifyPage() {
               <span>Staff ID</span>
               <strong>{workerCode || "Not supplied"}</strong>
               <span>Documents</span>
-              <strong>{Array.from(checkedDocuments).join(", ") || "None"}</strong>
+              <strong>{Object.entries(documentFiles).filter(([, file]) => Boolean(file)).map(([document]) => document).join(", ") || "None"}</strong>
               <span>Proof of life</span>
               <strong>{requiresLiveness ? (livenessDone ? "Completed" : "Pending") : "Not required"}</strong>
             </div>
@@ -300,4 +291,15 @@ function decodeExerciseParam(value: string | null): VerificationExercise | null 
   } catch {
     return null;
   }
+}
+
+function createDocumentFileState(documents: string[]) {
+  return documents.reduce<Record<string, File | null>>((accumulator, document) => {
+    accumulator[document] = null;
+    return accumulator;
+  }, {});
+}
+
+function displayMinistryName(value: string) {
+  return value.replace(/\s+Demo\s+[A-Z0-9-]+$/i, "");
 }

@@ -71,3 +71,19 @@
   color: var(--color-brand);
   padding: 4px 8px;
 }
+
+.loadingHint {
+  position: absolute;
+  left: var(--space-sm);
+  right: var(--space-sm);
+  bottom: 56px;
+  z-index: 3;
+  border: 1px solid var(--color-brand);
+  border-radius: var(--radius-button);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--color-brand);
+  padding: 10px 12px;
+  font-weight: 900;
+  text-align: center;
+  box-shadow: var(--shadow-1);
+}

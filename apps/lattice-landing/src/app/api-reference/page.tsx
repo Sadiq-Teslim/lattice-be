@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ExternalLink } from "lucide-react";
+import { CodeBlock } from "@/components/CodeBlock";
 import { Footer } from "@/components/Footer";
 import { SiteNav } from "@/components/SiteNav";
 import { links } from "@/lib/links";
@@ -322,8 +323,8 @@ export default function ApiReferencePage() {
                 secret keys.
               </p>
             </div>
-            <pre className="api-code"><code>{`X-Lattice-API-Key: YOUR_LATTICE_API_KEY
-Content-Type: application/json`}</code></pre>
+            <CodeBlock variant="inline">{`X-Lattice-API-Key: YOUR_LATTICE_API_KEY
+Content-Type: application/json`}</CodeBlock>
           </section>
 
           {endpoints.map((endpoint) => (
@@ -362,13 +363,13 @@ Content-Type: application/json`}</code></pre>
               {endpoint.request ? (
                 <div className="endpoint-section">
                   <h3>Sample Request</h3>
-                  <pre className="api-code"><code>{endpoint.request}</code></pre>
+                  <CodeBlock variant="inline">{endpoint.request}</CodeBlock>
                 </div>
               ) : null}
 
               <div className="endpoint-section">
                 <h3>Responses</h3>
-                <pre className="api-code"><code>{endpoint.response}</code></pre>
+                <CodeBlock variant="inline">{endpoint.response}</CodeBlock>
               </div>
             </article>
           ))}

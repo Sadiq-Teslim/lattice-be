@@ -2,10 +2,10 @@ import Link from "next/link";
 import {
   ArrowRight,
   BadgeCheck,
+  Building2,
   Database,
   FileText,
   Github,
-  Landmark,
   MessageSquareText,
   Puzzle,
   Settings,
@@ -15,9 +15,11 @@ import {
   Webhook,
   Zap,
 } from "lucide-react";
+import { CodeBlock } from "@/components/CodeBlock";
 import { CodeTabs } from "@/components/CodeTabs";
 import { Footer } from "@/components/Footer";
 import { SiteNav } from "@/components/SiteNav";
+import { viqSnippet } from "@/lib/content";
 import { links } from "@/lib/links";
 
 const whyCards = [
@@ -72,6 +74,34 @@ const capabilityCards = [
     href: "/api-reference",
     label: "Explore All APIs",
   },
+];
+
+const evidenceMoments = [
+  {
+    place: "Kaduna, NG",
+    headline: "23,846 ghost workers removed",
+    detail: "Public reports also cite NGN 36.5B in annual recovery after a single audit sweep.",
+  },
+  {
+    place: "Lagos, NG",
+    headline: "5,070 ghost workers exposed",
+    detail: "A reminder that stale records, once trusted, quietly become payment risk.",
+  },
+  {
+    place: "Ogun, NG",
+    headline: "BVN tied directly to salary release",
+    detail: "Public reports connect re-verification controls to who gets paid each month.",
+  },
+];
+
+const verificationFlow = [
+  "Your system creates a verification context for a subject — staff, customer, applicant, beneficiary, anyone.",
+  "Lattice issues a session link and the evidence checklist your policy requires.",
+  "The subject submits liveness, identity, and document evidence on any device.",
+  "AI runs face match, deepfake, BVN, document consistency, and anomaly scoring.",
+  "Lattice returns a signed Verification Identity Quotient (VIQ) — verdict, trust score, and flags.",
+  "Your system acts on the verdict: release, approve, deny, hold, or escalate to review.",
+  "Optional webhooks close the audit trail end-to-end, back to whatever system of record you run.",
 ];
 
 const squadPowers = [
@@ -140,6 +170,39 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="section evidence-band" id="evidence">
+        <div className="evidence-copy">
+          <span className="section-kicker">WHY THIS MATTERS</span>
+          <h2>
+            Identity rot doesn&rsquo;t fix itself.
+          </h2>
+          <p>
+            Most systems verify a person once &mdash; at onboarding &mdash; and then never again.
+            The cost shows up later, as payments to people who left, accounts that should never
+            have been opened, and audits that arrive months too late.
+          </p>
+          <p>
+            A Kaduna audit removed <strong>23,846 ghost workers</strong> and recovered{" "}
+            <strong>NGN 36.5 billion</strong> in a single sweep. Lagos quietly found another{" "}
+            <strong>5,070</strong>. Ogun resorted to tying salaries directly to BVN just to stop
+            the bleed. Each one is the same lesson: verification can&rsquo;t be a one-time event.
+          </p>
+          <p>
+            Lattice is the SDK that lets any system re-verify a person before it acts &mdash;
+            programmatically, on demand, with a signed verdict you can audit.
+          </p>
+        </div>
+        <ol className="evidence-moments">
+          {evidenceMoments.map(({ place, headline, detail }) => (
+            <li key={headline}>
+              <span className="evidence-place">{place}</span>
+              <strong>{headline}</strong>
+              <p>{detail}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
       <section className="section" id="why">
         <h2 className="section-title">Why Lattice?</h2>
         <div className="cards">
@@ -187,6 +250,40 @@ export default function Home() {
         </div>
 
         <CodeTabs />
+      </section>
+
+      <section className="section flow-section" id="how">
+        <div className="flow-copy">
+          <span className="section-kicker">HOW IT WORKS</span>
+          <h2>A verification SDK any system can call.</h2>
+          <p>
+            Lattice is provider-agnostic. We&rsquo;re demonstrating it on government payroll for
+            the hackathon, but the loop below is the same whether you&rsquo;re gating a salary
+            release, approving a loan, onboarding a customer, or unlocking access to anything that
+            actually matters.
+          </p>
+          <ol className="flow-timeline">
+            {verificationFlow.map((step, index) => (
+              <li key={step}>
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <p>{step}</p>
+              </li>
+            ))}
+          </ol>
+          <div className="flow-tags">
+            <span><Building2 size={14} strokeWidth={1.9} aria-hidden="true" /> Payroll &amp; HR</span>
+            <span><Users size={14} strokeWidth={1.9} aria-hidden="true" /> Customer onboarding</span>
+            <span><Shield size={14} strokeWidth={1.9} aria-hidden="true" /> Access control</span>
+            <span><BadgeCheck size={14} strokeWidth={1.9} aria-hidden="true" /> Benefits &amp; subsidies</span>
+          </div>
+        </div>
+        <div className="flow-output">
+          <div className="flow-output-head">
+            <span>Signed VIQ output</span>
+            <small>Example from the payroll hackathon demo &mdash; same shape for any subject.</small>
+          </div>
+          <CodeBlock compact>{viqSnippet}</CodeBlock>
+        </div>
       </section>
 
       <section className="section capabilities">

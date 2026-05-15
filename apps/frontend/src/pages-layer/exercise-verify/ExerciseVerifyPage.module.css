@@ -101,29 +101,55 @@
   font-weight: 800;
 }
 
-.checkList {
+.documentUploadList {
   display: grid;
   gap: var(--space-sm);
 }
 
-.checkList button {
-  display: flex;
-  align-items: center;
+.documentUploadRow {
+  display: grid;
   gap: var(--space-sm);
-  min-height: 52px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-button);
   background: white;
   color: var(--color-text-primary);
-  padding: 0 var(--space-md);
-  text-align: left;
+  padding: var(--space-md);
   font-weight: 800;
 }
 
-.checkList .selected {
+.documentUploadRow.uploaded {
   border-color: var(--color-brand);
   background: #ecfdf3;
   color: var(--color-brand);
+}
+
+.documentUploadHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.documentUploadHeader strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.documentUploadRow input {
+  width: 100%;
+  min-height: 46px;
+  height: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-button);
+  background: white;
+  padding: 10px;
+}
+
+.documentUploadRow small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
 }
 
 .camera {

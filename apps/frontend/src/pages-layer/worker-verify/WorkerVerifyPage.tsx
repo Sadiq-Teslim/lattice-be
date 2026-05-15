@@ -20,6 +20,11 @@ import styles from "./WorkerVerifyPage.module.css";
 type FlowStep = "loading" | "welcome" | "otp" | "liveness" | "documents" | "processing" | "result";
 
 const steps = ["OTP", "Liveness", "Documents", "Done"];
+const requiredWorkerDocuments = [
+  "Appointment letter",
+  "Birth certificate / declaration of age",
+  "Staff ID card",
+];
 
 type Props = {
   sessionToken?: string;
@@ -36,7 +41,9 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [liveness, setLiveness] = useState<LivenessEvaluationResponse | null>(null);
   const [documents, setDocuments] = useState<DocumentConsistencyResponse | PublicDocumentUploadResponse | null>(null);
-  const [documentFiles, setDocumentFiles] = useState<File[]>([]);
+  const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>(
+    createDocumentFileState(requiredWorkerDocuments),
+  );
   const [verificationNotes, setVerificationNotes] = useState<string[]>([]);
   const [viq, setViq] = useState<Viq | null>(null);
   const [processingIndex, setProcessingIndex] = useState(0);
@@ -52,6 +59,10 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const otpComplete = otp.every(Boolean);
   const workerAmount = useMemo(() => formatMoney(worker?.salary_amount), [worker]);
   const resultStatus = viq?.verdict === "PASS" ? "pass" : viq?.verdict === "FAIL" ? "fail" : "review";
+  const documentComplete = useMemo(
+    () => requiredWorkerDocuments.every((document) => Boolean(documentFiles[document])),
+    [documentFiles],
+  );
 
   useEffect(() => {
     const onOnline = () => setOffline(false);
@@ -193,9 +204,10 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     setBusy(true);
     setError(null);
     try {
+      const files = Object.values(documentFiles).filter((file): file is File => Boolean(file));
       const [documentResult, identityEvidence] = await Promise.all([
-        documentFiles.length
-          ? latticeApi.uploadPublicVerificationDocuments(activeToken, documentFiles)
+        files.length
+          ? latticeApi.uploadPublicVerificationDocuments(activeToken, files)
           : latticeApi.evaluatePublicVerificationDocuments(activeToken),
         latticeApi.verifyPublicVerificationIdentity(activeToken).catch(() => null),
       ]);
@@ -276,6 +288,10 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
       setError(err instanceof Error ? err.message : "Verification could not be finalized.");
       setStep("documents");
     }
+  }
+
+  function setDocumentFile(document: string, file: File | null) {
+    setDocumentFiles((current) => ({ ...current, [document]: file }));
   }
 
   if (step === "loading") {
@@ -417,23 +433,32 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
                 <strong>{workerAmount}</strong>
               </div>
             </div>
-            <label className={styles.fileInput}>
-              Required documents
-              <input
-                accept=".pdf,.txt,.md,.csv,image/*"
-                multiple
-                type="file"
-                onChange={(event) => setDocumentFiles(Array.from(event.target.files ?? []))}
-              />
-              <span>{documentFiles.length ? `${documentFiles.length} file(s) selected` : "PDF or text files work best for extraction"}</span>
-            </label>
+            <div className={styles.documentUploadList}>
+              {requiredWorkerDocuments.map((document) => (
+                <label
+                  className={`${styles.documentUploadRow} ${documentFiles[document] ? styles.uploaded : ""}`}
+                  key={document}
+                >
+                  <span className={styles.documentUploadHeader}>
+                    {documentFiles[document] ? <CheckCircle size={18} strokeWidth={1.5} /> : <UploadCloud size={18} strokeWidth={1.5} />}
+                    <strong>{document}</strong>
+                  </span>
+                  <input
+                    accept=".pdf,.txt,.md,.csv,image/*"
+                    type="file"
+                    onChange={(event) => setDocumentFile(document, event.target.files?.[0] ?? null)}
+                  />
+                  <small>{documentFiles[document]?.name ?? "PDF, image, or text file required"}</small>
+                </label>
+              ))}
+            </div>
             {documents ? <p className={styles.meta}>Documents: {documents.status}</p> : null}
             {verificationNotes.length ? (
               <div className={styles.noteList}>
                 {verificationNotes.map((note) => <span key={note}>{note}</span>)}
               </div>
             ) : null}
-            <Button fullWidth disabled={!documentFiles.length} loading={busy} onClick={runDocumentCheck}>Submit Documents</Button>
+            <Button fullWidth disabled={!documentComplete} loading={busy} onClick={runDocumentCheck}>Submit Documents</Button>
           </Card>
         ) : null}
 
@@ -476,4 +501,11 @@ function formatDisplayDate(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-NG", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function createDocumentFileState(documents: string[]) {
+  return documents.reduce<Record<string, File | null>>((accumulator, document) => {
+    accumulator[document] = null;
+    return accumulator;
+  }, {});
 }

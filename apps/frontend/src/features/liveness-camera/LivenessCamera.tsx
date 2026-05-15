@@ -28,6 +28,8 @@ type LivenessCameraProps = {
 
 const LEFT_EYE = [33, 160, 158, 133, 153, 144];
 const RIGHT_EYE = [362, 385, 387, 263, 373, 380];
+const MEDIAPIPE_WASM_PATH = "/mediapipe/wasm";
+const FACE_LANDMARKER_MODEL_PATH = "/mediapipe/models/face_landmarker.task";
 
 export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraProps>(
   function LivenessCamera({ onMetricsChange }, ref) {
@@ -49,6 +51,7 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
     const [status, setStatus] = useState("Starting camera");
     const [metrics, setMetrics] = useState<LivenessMetrics>(metricsRef.current);
     const [error, setError] = useState<string | null>(null);
+    const [trackerSlow, setTrackerSlow] = useState(false);
 
     useImperativeHandle(ref, () => ({
       captureFrame,
@@ -64,24 +67,9 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
     }, []);
 
     async function start(cancelled: boolean) {
+      let slowTimer: number | null = null;
       try {
-        setStatus("Loading face tracker");
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.22-rc.20250304/wasm",
-        );
-        if (cancelled) return;
-        landmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numFaces: 1,
-          minFaceDetectionConfidence: 0.5,
-          minFacePresenceConfidence: 0.5,
-          minTrackingConfidence: 0.5,
-        });
+        setStatus("Starting camera");
         streamRef.current = await navigator.mediaDevices.getUserMedia({
           video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 540 } },
           audio: false,
@@ -89,10 +77,31 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
         if (!videoRef.current || cancelled) return;
         videoRef.current.srcObject = streamRef.current;
         await videoRef.current.play();
+        setStatus("Loading face tracker");
+        slowTimer = window.setTimeout(() => {
+          setTrackerSlow(true);
+          setStatus("Camera ready. Loading secure face tracker");
+        }, 5000);
+        const vision = await FilesetResolver.forVisionTasks(MEDIAPIPE_WASM_PATH);
+        if (cancelled) return;
+        landmarkerRef.current = await FaceLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: FACE_LANDMARKER_MODEL_PATH,
+            delegate: "CPU",
+          },
+          runningMode: "VIDEO",
+          numFaces: 1,
+          minFaceDetectionConfidence: 0.5,
+          minFacePresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+        if (slowTimer !== null) window.clearTimeout(slowTimer);
+        setTrackerSlow(false);
         setStatus("Tracking face");
         animationRef.current = requestAnimationFrame(loop);
       } catch {
-        setError("Camera or face tracking could not start.");
+        if (slowTimer !== null) window.clearTimeout(slowTimer);
+        setError(streamRef.current ? "Face tracker could not start. Please refresh and try again." : "Camera could not start.");
         setStatus("Camera unavailable");
       }
     }
@@ -199,6 +208,9 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
           <span>Turn {Math.round(metrics.headTurnDegrees)} deg</span>
           <span>{Math.round(metrics.confidence * 100)}%</span>
         </div>
+        {trackerSlow && !metrics.passed ? (
+          <div className={styles.loadingHint}>Keep your face in view while the tracker starts.</div>
+        ) : null}
       </div>
     );
   },

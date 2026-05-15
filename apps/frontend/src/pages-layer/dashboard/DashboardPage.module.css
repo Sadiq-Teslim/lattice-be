@@ -321,13 +321,14 @@
 
 .exerciseCards {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 520px), 1fr));
   gap: var(--space-md);
 }
 
 .exerciseCard {
   display: grid;
   gap: var(--space-md);
+  min-width: 0;
   padding: var(--space-md);
 }
 
@@ -344,13 +345,33 @@
   align-items: flex-start;
 }
 
+.exerciseCardHeader > div {
+  min-width: 0;
+}
+
 .exerciseCardHeader h2 {
   margin: var(--space-xs) 0 0;
+  overflow-wrap: anywhere;
 }
 
 .exerciseCardHeader p {
   margin: var(--space-xs) 0 0;
   color: var(--color-text-secondary);
+}
+
+.exerciseCardActions {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+.exerciseCardActions > * {
+  flex: 1 1 132px;
+  min-width: 0;
+}
+
+.exerciseCardActions button,
+.exerciseCardActions a {
+  white-space: nowrap;
 }
 
 .statusPill {
@@ -488,6 +509,68 @@
   color: var(--color-text-primary);
 }
 
+.modalContent {
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-2);
+}
+
+.modalHeader {
+  border-bottom: 1px solid var(--color-border);
+  background: white;
+  padding: var(--space-lg);
+}
+
+.modalBody {
+  padding: var(--space-lg);
+}
+
+.modalHeading {
+  flex: 1;
+}
+
+.modalTitle {
+  display: grid;
+  gap: 3px;
+}
+
+.modalTitle span {
+  color: var(--color-danger);
+  font-size: 14px;
+  font-weight: 900;
+}
+
+.modalTitle h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 22px;
+  line-height: 1.2;
+}
+
+.confirmDelete {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.confirmDelete p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.confirmMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.confirmActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
 .drawerTitle h2,
 .drawerTitle span {
   margin: 0;
@@ -600,9 +683,12 @@
 
   .exerciseCardHeader,
   .exerciseCardActions,
-  .drawerFooter {
+  .drawerFooter,
+  .confirmActions,
+  .confirmMeta {
     align-items: stretch;
     flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .exerciseCardActions > *,

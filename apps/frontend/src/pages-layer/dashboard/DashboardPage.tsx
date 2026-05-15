@@ -15,7 +15,7 @@ import {
   Shield,
   Settings2,
 } from "lucide-react";
-import { Avatar, Drawer, Group, Paper, SegmentedControl, Select, Text, TextInput } from "@mantine/core";
+import { Avatar, Drawer, Group, Modal, Paper, SegmentedControl, Select, Text, TextInput } from "@mantine/core";
 import { latticeApi } from "@/shared/api/client";
 import { env } from "@/shared/config/env";
 import type {
@@ -118,6 +118,7 @@ export function DashboardPage() {
   const [exerciseScope, setExerciseScope] = useState("All ministry staff");
   const [exerciseDrawerOpen, setExerciseDrawerOpen] = useState(false);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
+  const [exercisePendingDelete, setExercisePendingDelete] = useState<VerificationExercise | null>(null);
   const [selectedExerciseRules, setSelectedExerciseRules] = useState<Set<ExerciseRule>>(
     new Set(["proof_of_life", "identity_bvn", "document_consistency", "payroll_anomaly"]),
   );
@@ -241,6 +242,7 @@ export function DashboardPage() {
     setAdminSummary(result.summary);
     setPayrollStage("IMPORTED");
     setWorkers(sortWorkers(result.workers));
+    void loadSubmissionsForExercises(result.exercises);
   }
 
   async function loadInitialBatch() {
@@ -267,10 +269,31 @@ export function DashboardPage() {
     applyStaffActions(listedActions);
     setExercises(listedExercises);
     setAdminSummary(summary);
-    if (listedExercises[0]) {
-      const submissions = await latticeApi.listExerciseSubmissions(listedExercises[0].id);
-      setExerciseSubmissions(submissions);
+    await loadSubmissionsForExercises(listedExercises);
+  }
+
+  async function loadSubmissionsForExercises(nextExercises: VerificationExercise[]) {
+    if (!nextExercises.length) {
+      setExerciseSubmissions([]);
+      return;
     }
+    const groupedSubmissions = await Promise.all(
+      nextExercises.map(async (exercise) => {
+        const submissions = await latticeApi.listExerciseSubmissions(exercise.id).catch(() => []);
+        return submissions.map((submission) => ({
+          ...submission,
+          payload: {
+            ...submission.payload,
+            exercise_name: submission.payload.exercise_name ?? exercise.name,
+          },
+        }));
+      }),
+    );
+    setExerciseSubmissions(
+      groupedSubmissions
+        .flat()
+        .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime()),
+    );
   }
 
   function applyStaffActions(actions: StaffAction[]) {
@@ -453,10 +476,10 @@ export function DashboardPage() {
         : latticeApi.createVerificationExercise(payload),
     );
     if (exercise) {
-      setExercises((current) => [exercise, ...current.filter((item) => item.id !== exercise.id)]);
+      const nextExercises = [exercise, ...exercises.filter((item) => item.id !== exercise.id)];
+      setExercises(nextExercises);
       setEditingExerciseId(exercise.id);
-      const submissions = await latticeApi.listExerciseSubmissions(exercise.id);
-      setExerciseSubmissions(submissions);
+      await loadSubmissionsForExercises(nextExercises);
     }
   }
 
@@ -479,25 +502,31 @@ export function DashboardPage() {
       return latticeApi.publishVerificationExercise(draft.id);
     });
     if (saved) {
-      setExercises((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
+      const nextExercises = [saved, ...exercises.filter((item) => item.id !== saved.id)];
+      setExercises(nextExercises);
       setEditingExerciseId(saved.id);
+      await loadSubmissionsForExercises(nextExercises);
     }
   }
 
   async function deleteExercise(exercise: VerificationExercise) {
-    const confirmed = window.confirm(`Delete "${exercise.name}" and its submissions?`);
-    if (!confirmed) return;
     const result = await runAction(`exercise-delete-${exercise.id}`, () =>
       latticeApi.deleteVerificationExercise(exercise.id),
     );
     if (result !== null) {
-      setExercises((current) => current.filter((item) => item.id !== exercise.id));
+      const nextExercises = exercises.filter((item) => item.id !== exercise.id);
+      setExercises(nextExercises);
       if (editingExerciseId === exercise.id) {
         setEditingExerciseId(null);
         setExerciseDrawerOpen(false);
       }
-      setExerciseSubmissions([]);
+      await loadSubmissionsForExercises(nextExercises);
+      setExercisePendingDelete(null);
     }
+  }
+
+  function requestDeleteExercise(exercise: VerificationExercise) {
+    setExercisePendingDelete(exercise);
   }
 
   function openNewExercise() {
@@ -637,7 +666,7 @@ export function DashboardPage() {
             onCloseDrawer={() => setExerciseDrawerOpen(false)}
             onDocumentToggle={toggleExerciseDocument}
             onEdit={editExercise}
-            onDelete={deleteExercise}
+            onDelete={requestDeleteExercise}
             onNameChange={setExerciseName}
             onNew={openNewExercise}
             onPublish={publishExercise}
@@ -694,6 +723,54 @@ export function DashboardPage() {
         onGenerateLink={(worker) => generateWorkerLink(worker, false)}
         onSendLink={(worker) => generateWorkerLink(worker, true)}
       />
+
+      <Modal
+        centered
+        opened={Boolean(exercisePendingDelete)}
+        onClose={() => setExercisePendingDelete(null)}
+        radius={18}
+        size="lg"
+        title={(
+          <div className={styles.modalTitle}>
+            <span>Delete verification exercise</span>
+            <h2>{exercisePendingDelete?.name ?? "Verification exercise"}</h2>
+          </div>
+        )}
+        classNames={{
+          body: styles.modalBody,
+          content: styles.modalContent,
+          header: styles.modalHeader,
+          title: styles.modalHeading,
+        }}
+        overlayProps={{ backgroundOpacity: 0.42, blur: 2 }}
+      >
+        <div className={styles.confirmDelete}>
+          <p>
+            This will remove the exercise, its worker link, and all submissions attached to it.
+            Staff records and payroll verification history will remain untouched.
+          </p>
+          <div className={styles.confirmMeta}>
+            <Metric label="Scope" value={exercisePendingDelete?.scope ?? "-"} />
+            <Metric label="Documents" value={String(exercisePendingDelete?.documents.length ?? 0)} />
+            <Metric label="Status" value={exercisePendingDelete?.status ?? "-"} />
+          </div>
+          <div className={styles.confirmActions}>
+            <Button fullWidth variant="secondary" onClick={() => setExercisePendingDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              fullWidth
+              loading={Boolean(exercisePendingDelete && loading === `exercise-delete-${exercisePendingDelete.id}`)}
+              onClick={() => {
+                if (exercisePendingDelete) void deleteExercise(exercisePendingDelete);
+              }}
+              variant="destructive"
+            >
+              Delete Exercise
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
