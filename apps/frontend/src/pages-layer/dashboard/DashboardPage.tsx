@@ -1605,7 +1605,7 @@ function SettingsView() {
         <h2>Credit purchase</h2>
         <p>Buy credits from the Lattice SDK page beside the API key and developer setup.</p>
         {error ? <p className={styles.inlineError}>{error}</p> : null}
-        <Button onClick={() => window.open("/#billing", "_blank", "noopener,noreferrer")}>
+        <Button onClick={() => window.open("https://lattice-peach.vercel.app/get-started", "_blank", "noopener,noreferrer")}>
           Open Lattice credits
         </Button>
       </Card>

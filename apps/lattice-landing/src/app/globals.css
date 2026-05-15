@@ -1963,6 +1963,166 @@ pre {
   box-shadow: 0 12px 26px rgba(229, 9, 20, 0.25);
 }
 
+.gs-credit-panel {
+  display: grid;
+  gap: 18px;
+  margin-top: 22px;
+  border: 1px solid #f1d6d8;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #ffffff, #fff8f8);
+  padding: 20px;
+}
+
+.gs-credit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gs-credit-head h3 {
+  margin: 4px 0 6px;
+  color: var(--text);
+  font-size: 20px;
+  letter-spacing: -0.3px;
+}
+
+.gs-credit-head p,
+.gs-credit-note {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.gs-credit-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 16px;
+}
+
+.gs-credit-balance {
+  display: grid;
+  gap: 6px;
+  align-content: start;
+  min-height: 100%;
+  border-radius: 16px;
+  background: radial-gradient(circle at top right, rgba(229, 9, 20, 0.18), transparent 45%),
+    #151515;
+  color: white;
+  padding: 18px;
+}
+
+.gs-credit-balance svg {
+  color: #ff8a93;
+}
+
+.gs-credit-balance span,
+.gs-credit-balance small {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.gs-credit-balance strong {
+  font-size: 42px;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+.gs-credit-form {
+  display: grid;
+  gap: 12px;
+}
+
+.gs-credit-form label {
+  display: grid;
+  gap: 7px;
+}
+
+.gs-credit-form label span {
+  color: var(--text);
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.gs-credit-form input {
+  width: 100%;
+  height: 42px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: white;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  padding: 0 12px;
+}
+
+.gs-credit-form input:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 4px rgba(229, 9, 20, 0.12);
+}
+
+.gs-credit-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-radius: 12px;
+  background: #fff0f1;
+  color: var(--text);
+  padding: 12px 14px;
+}
+
+.gs-credit-total span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.gs-credit-total strong {
+  font-size: 18px;
+}
+
+.gs-credit-error {
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fef2f2;
+  color: #b91c1c;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 10px 12px;
+}
+
+.gs-purchase-list {
+  display: grid;
+  gap: 8px;
+}
+
+.gs-purchase-list > strong {
+  font-size: 13px;
+}
+
+.gs-purchase-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #f4dddd;
+  border-radius: 12px;
+  background: white;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+
+.gs-purchase-row em {
+  border-radius: 999px;
+  background: #fff0f1;
+  color: var(--red);
+  font-style: normal;
+  font-weight: 800;
+  padding: 4px 8px;
+  text-transform: uppercase;
+}
+
 /* MANAGE SECTION */
 
 .gs-manage-intro {
@@ -2776,6 +2936,15 @@ pre {
   .gs-card,
   .gs-benefits {
     padding: 24px;
+  }
+
+  .gs-credit-grid,
+  .gs-purchase-row {
+    grid-template-columns: 1fr;
+  }
+
+  .gs-credit-head {
+    flex-direction: column;
   }
 
   .gs-manage-intro {

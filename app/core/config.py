@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     squad_sms_endpoint: str = "/sms/send/instant"
     squad_sms_sender_id: str = "Lattice"
 
-    credit_price_naira: int = 50
+    credit_price_naira: int = 150
     default_account_initial_credits: int = 25
     billing_enforce_credits: bool = True
 

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from sqlalchemy.orm import Session
 
 from app.core.auth import require_lattice_api_key
@@ -15,7 +15,16 @@ from app.services.billing import BillingService
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 db_session = Depends(get_db)
-api_key_dependency = Depends(require_lattice_api_key)
+
+
+def resolve_billing_api_key(x_lattice_api_key: str | None = Header(default=None)) -> str | None:
+    key = (x_lattice_api_key or "").strip()
+    if key.startswith(("latt_live_", "lt_live_")):
+        return key
+    return require_lattice_api_key(x_lattice_api_key)
+
+
+api_key_dependency = Depends(resolve_billing_api_key)
 
 
 @router.get("/account", response_model=BillingAccountResponse)

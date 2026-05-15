@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   Code2,
   Copy,
+  CreditCard,
   Eye,
   EyeOff,
   KeyRound,
@@ -17,6 +18,7 @@ import {
   ShieldCheck,
   Trash2,
   UserRound,
+  WalletCards,
   Zap,
 } from "lucide-react";
 import { Footer } from "@/components/Footer";
@@ -33,7 +35,31 @@ type ApiKey = {
   createdAt: string;
 };
 
+type BillingAccount = {
+  id: string;
+  name: string;
+  email: string | null;
+  api_key_last4: string;
+  credit_balance: number;
+  status: string;
+  price_per_credit_naira: number;
+};
+
+type CreditPurchase = {
+  id: string;
+  credits: number;
+  amount_naira: string;
+  transaction_reference: string;
+  checkout_url: string | null;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+};
+
 const STORAGE_KEY = "lattice:demo-api-keys";
+const LATTICE_API_BASE_URL =
+  process.env.NEXT_PUBLIC_LATTICE_API_URL ?? "https://lattice-be.onrender.com/api/v1";
+const CREDIT_PRICE_NAIRA = 150;
 
 const useCaseOptions = [
   "Government payroll verification",
@@ -76,6 +102,10 @@ function maskKey(key: string) {
   return `${key.slice(0, 14)}${"•".repeat(18)}${key.slice(-4)}`;
 }
 
+function formatMoney(amount: number) {
+  return `₦${Math.round(amount).toLocaleString("en-NG")}`;
+}
+
 function formatDate(iso: string) {
   try {
     const d = new Date(iso);
@@ -89,6 +119,174 @@ function formatDate(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function CreditPurchasePanel({ apiKey }: { apiKey: ApiKey }) {
+  const [account, setAccount] = useState<BillingAccount | null>(null);
+  const [purchases, setPurchases] = useState<CreditPurchase[]>([]);
+  const [credits, setCredits] = useState(100);
+  const [customerName, setCustomerName] = useState(apiKey.institution || apiKey.name);
+  const [email, setEmail] = useState(apiKey.email);
+  const [loading, setLoading] = useState(true);
+  const [purchasing, setPurchasing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const amount = credits * CREDIT_PRICE_NAIRA;
+
+  async function billingRequest<T>(path: string, init?: RequestInit): Promise<T> {
+    const response = await fetch(`${LATTICE_API_BASE_URL}${path}`, {
+      ...init,
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-Lattice-API-Key": apiKey.key,
+        ...(init?.headers ?? {}),
+      },
+    });
+    const text = await response.text();
+    const data = text ? JSON.parse(text) : null;
+    if (!response.ok) {
+      const message =
+        data?.detail?.message ?? data?.detail ?? data?.message ?? "Credit request failed";
+      throw new Error(typeof message === "string" ? message : "Credit request failed");
+    }
+    return data as T;
+  }
+
+  async function refreshCredits() {
+    setLoading(true);
+    setError(null);
+    try {
+      const [nextAccount, nextPurchases] = await Promise.all([
+        billingRequest<BillingAccount>("/billing/account"),
+        billingRequest<CreditPurchase[]>("/billing/credit-purchases"),
+      ]);
+      setAccount(nextAccount);
+      setPurchases(nextPurchases);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load credit wallet");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function buyCredits() {
+    setPurchasing(true);
+    setError(null);
+    try {
+      const purchase = await billingRequest<CreditPurchase>("/billing/credit-purchases", {
+        method: "POST",
+        body: JSON.stringify({
+          credits,
+          customer_name: customerName,
+          email,
+        }),
+      });
+      setPurchases((prev) => [purchase, ...prev.filter((item) => item.id !== purchase.id)]);
+      if (purchase.checkout_url) {
+        window.open(purchase.checkout_url, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start credit purchase");
+    } finally {
+      setPurchasing(false);
+    }
+  }
+
+  useEffect(() => {
+    void refreshCredits();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiKey.id]);
+
+  return (
+    <section className="gs-credit-panel" id="billing">
+      <div className="gs-credit-head">
+        <div>
+          <span className="section-kicker">CREDITS</span>
+          <h3>Fund this API key</h3>
+          <p>Each verification credit costs {formatMoney(CREDIT_PRICE_NAIRA)}.</p>
+        </div>
+        <button type="button" className="gs-ghost-btn small" onClick={refreshCredits} disabled={loading}>
+          <RefreshCw size={14} strokeWidth={1.8} aria-hidden="true" />
+          Refresh
+        </button>
+      </div>
+
+      <div className="gs-credit-grid">
+        <div className="gs-credit-balance">
+          <WalletCards size={22} strokeWidth={1.8} aria-hidden="true" />
+          <span>Available credits</span>
+          <strong>{loading ? "..." : account?.credit_balance ?? 0}</strong>
+          <small>API key ending {account?.api_key_last4 ?? apiKey.key.slice(-4)}</small>
+        </div>
+
+        <div className="gs-credit-form">
+          <label>
+            <span>Credits</span>
+            <input
+              type="number"
+              min={10}
+              step={10}
+              value={credits}
+              onChange={(event) => setCredits(Math.max(10, Number(event.target.value) || 10))}
+            />
+          </label>
+          <label>
+            <span>Billing name</span>
+            <input
+              type="text"
+              value={customerName}
+              onChange={(event) => setCustomerName(event.target.value)}
+            />
+          </label>
+          <label>
+            <span>Billing email</span>
+            <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+          </label>
+          <div className="gs-credit-total">
+            <span>Total</span>
+            <strong>{formatMoney(amount)}</strong>
+          </div>
+          {error ? <p className="gs-credit-error">{error}</p> : null}
+          <button
+            type="button"
+            className="gs-submit"
+            onClick={buyCredits}
+            disabled={purchasing || !email.trim() || !customerName.trim()}
+          >
+            {purchasing ? (
+              <>
+                <span className="gs-spinner" aria-hidden="true" />
+                Opening Squad checkout...
+              </>
+            ) : (
+              <>
+                <CreditCard size={16} aria-hidden="true" />
+                Buy credits with Squad
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {purchases.length ? (
+        <div className="gs-purchase-list">
+          <strong>Recent credit purchases</strong>
+          {purchases.slice(0, 3).map((purchase) => (
+            <div className="gs-purchase-row" key={purchase.id}>
+              <span>{purchase.credits} credits</span>
+              <span>{formatMoney(Number(purchase.amount_naira))}</span>
+              <em>{purchase.status.replaceAll("_", " ")}</em>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="gs-credit-note">
+          Squad handles card, transfer, and other checkout methods. Your credits appear after payment confirmation.
+        </p>
+      )}
+    </section>
+  );
 }
 
 export default function GetStartedPage() {
@@ -268,6 +466,7 @@ export default function GetStartedPage() {
                     Open API DOCS <ArrowRight size={16} aria-hidden="true" />
                   </Link>
                 </div>
+                <CreditPurchasePanel apiKey={justCreated} />
               </div>
             ) : (
               <form className="gs-form" onSubmit={handleSubmit} noValidate>

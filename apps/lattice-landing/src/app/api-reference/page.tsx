@@ -246,9 +246,9 @@ const endpoints: Endpoint[] = [
     path: "/api/v1/billing/credit-purchases",
     auth: "X-Lattice-API-Key",
     summary:
-      "Initiates a Squad checkout for Lattice credits. Each successful verification consumes one credit.",
+      "Initiates a Squad checkout for Lattice credits. Each successful verification consumes one credit. Each credit costs ₦150.",
     parameters: [
-      { name: "credits", type: "number", required: "Yes", description: "Number of verification credits to purchase." },
+      { name: "credits", type: "number", required: "Yes", description: "Number of verification credits to purchase at ₦150 each." },
       { name: "customer_name", type: "string", required: "Yes", description: "Institution or billing account name." },
       { name: "email", type: "string", required: "Yes", description: "Billing email used by Squad checkout." },
     ],
@@ -262,7 +262,7 @@ const endpoints: Endpoint[] = [
   }'`,
     response: `{
   "credits": 1000,
-  "amount_naira": "50000.00",
+  "amount_naira": "150000.00",
   "status": "PENDING",
   "checkout_url": "https://checkout.squadco.com/..."
 }`,
