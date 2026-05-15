@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import styles from "./StepProgress.module.css";
 
 type StepProgressProps = {
@@ -7,7 +8,11 @@ type StepProgressProps = {
 
 export function StepProgress({ steps, currentStep }: StepProgressProps) {
   return (
-    <ol className={styles.progress} aria-label="Progress">
+    <ol
+      className={styles.progress}
+      aria-label="Progress"
+      style={{ "--step-count": steps.length } as CSSProperties}
+    >
       {steps.map((step, index) => {
         const state =
           index < currentStep ? styles.complete : index === currentStep ? styles.current : "";

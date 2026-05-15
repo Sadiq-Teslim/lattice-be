@@ -2,7 +2,10 @@ import { env } from "@/shared/config/env";
 import type {
   AnomalyScanResponse,
   AdminSummary,
+  BillingAccount,
   BiasAuditResponse,
+  CreditLedgerEntry,
+  CreditPurchase,
   DemoBootstrapResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
@@ -14,6 +17,7 @@ import type {
   PublicOtpVerifyResponse,
   PublicDocumentUploadResponse,
   PublicFaceVerificationResponse,
+  PublicStaffMatchResponse,
   PublicVerificationSessionResponse,
   ReleaseEligibleResponse,
   SquadAccountLookupResponse,
@@ -166,6 +170,28 @@ export const latticeApi = {
   integrationReadiness: () =>
     request<IntegrationReadinessResponse>("/admin/integrations/readiness"),
 
+  billingAccount: () =>
+    request<BillingAccount>("/billing/account", {
+      protected: true,
+    }),
+
+  listCreditPurchases: () =>
+    request<CreditPurchase[]>("/billing/credit-purchases", {
+      protected: true,
+    }),
+
+  listCreditLedger: () =>
+    request<CreditLedgerEntry[]>("/billing/ledger", {
+      protected: true,
+    }),
+
+  createCreditPurchase: (payload: { credits: number; customer_name: string; email: string }) =>
+    request<CreditPurchase>("/billing/credit-purchases", {
+      method: "POST",
+      protected: true,
+      body: JSON.stringify(payload),
+    }),
+
   requeryViqTransfer: (viq_id: string) =>
     request<{
       viq_id: string;
@@ -219,6 +245,26 @@ export const latticeApi = {
       `/admin/public/verification-exercises/${encodeURIComponent(token)}`,
     ),
 
+  matchPublicVerificationExerciseStaff: (
+    token: string,
+    payload: {
+      worker_code: string;
+      full_name: string;
+      date_of_birth?: string;
+      phone?: string;
+    },
+  ) => {
+    const query = new URLSearchParams({
+      worker_code: payload.worker_code,
+      full_name: payload.full_name,
+    });
+    if (payload.date_of_birth) query.set("date_of_birth", payload.date_of_birth);
+    if (payload.phone) query.set("phone", payload.phone);
+    return request<PublicStaffMatchResponse>(
+      `/admin/public/verification-exercises/${encodeURIComponent(token)}/staff-match?${query.toString()}`,
+    );
+  },
+
   submitPublicVerificationExercise: (
     token: string,
     payload: {
@@ -244,6 +290,8 @@ export const latticeApi = {
       worker_code?: string;
       full_name: string;
       phone?: string;
+      date_of_birth?: string;
+      biometric_status?: string;
       liveness_status?: string;
       files: File[];
     },
@@ -252,6 +300,8 @@ export const latticeApi = {
     body.set("full_name", payload.full_name);
     if (payload.worker_code) body.set("worker_code", payload.worker_code);
     if (payload.phone) body.set("phone", payload.phone);
+    if (payload.date_of_birth) body.set("date_of_birth", payload.date_of_birth);
+    if (payload.biometric_status) body.set("biometric_status", payload.biometric_status);
     if (payload.liveness_status) body.set("liveness_status", payload.liveness_status);
     payload.files.forEach((file) => body.append("files", file));
     return request<ExerciseSubmission>(
@@ -354,6 +404,7 @@ export const latticeApi = {
       liveness?: Record<string, unknown>;
       deepfake?: Record<string, unknown>;
       face_match?: Record<string, unknown>;
+      biometric?: Record<string, unknown>;
       bvn?: Record<string, unknown>;
       documents?: Record<string, unknown>;
     },
@@ -398,6 +449,7 @@ export const latticeApi = {
       liveness?: Record<string, unknown>;
       deepfake?: Record<string, unknown>;
       face_match?: Record<string, unknown>;
+      biometric?: Record<string, unknown>;
       bvn?: Record<string, unknown>;
       documents?: Record<string, unknown>;
     },

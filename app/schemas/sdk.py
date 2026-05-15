@@ -23,3 +23,4 @@ class VerifyAndDisburseResponse(BaseModel):
     payment_attempted: bool
     payment_blocked_reason: str | None = None
     transfer: InitiateVIQTransferResponse | None = None
+    credit_balance: int | None = None

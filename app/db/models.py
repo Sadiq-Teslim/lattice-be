@@ -245,6 +245,69 @@ class OtpChallenge(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
+class BillingAccount(Base):
+    __tablename__ = "billing_accounts"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(255), index=True)
+    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    api_key: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    credit_balance: Mapped[int] = mapped_column(default=0)
+    status: Mapped[str] = mapped_column(String(32), default="ACTIVE", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    purchases: Mapped[list["CreditPurchase"]] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+    ledger_entries: Mapped[list["CreditLedgerEntry"]] = relationship(
+        back_populates="account",
+        cascade="all, delete-orphan",
+    )
+
+
+class CreditPurchase(Base):
+    __tablename__ = "credit_purchases"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    account_id: Mapped[str] = mapped_column(ForeignKey("billing_accounts.id"), index=True)
+    credits: Mapped[int] = mapped_column()
+    amount_naira: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    transaction_reference: Mapped[str] = mapped_column(String(128), unique=True, index=True)
+    checkout_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(32), default="PENDING", index=True)
+    squad_response: Mapped[dict | None] = mapped_column(json_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )
+
+    account: Mapped[BillingAccount] = relationship(back_populates="purchases")
+
+
+class CreditLedgerEntry(Base):
+    __tablename__ = "credit_ledger_entries"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    account_id: Mapped[str] = mapped_column(ForeignKey("billing_accounts.id"), index=True)
+    delta: Mapped[int] = mapped_column()
+    balance_after: Mapped[int] = mapped_column()
+    reason: Mapped[str] = mapped_column(String(64), index=True)
+    reference: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    payload: Mapped[dict] = mapped_column(json_type, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+    account: Mapped[BillingAccount] = relationship(back_populates="ledger_entries")
+
+
 class Job(Base):
     __tablename__ = "jobs"
 
@@ -265,3 +328,4 @@ class Job(Base):
 
 Index("ix_viqs_worker_cycle", VIQ.worker_id, VIQ.pay_cycle_id)
 Index("ix_sessions_worker_cycle", VerificationSession.worker_id, VerificationSession.pay_cycle_id)
+Index("ix_credit_ledger_account_created", CreditLedgerEntry.account_id, CreditLedgerEntry.created_at)

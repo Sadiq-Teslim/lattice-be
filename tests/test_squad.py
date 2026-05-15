@@ -71,6 +71,34 @@ def test_squad_sms_uses_instant_messages_payload(monkeypatch: pytest.MonkeyPatch
     }
 
 
+def test_squad_initiate_payment_uses_checkout_channels(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured = {}
+    monkeypatch.setattr(settings, "squad_secret_key", "test-secret")
+
+    def fake_request(method: str, path: str, **kwargs):
+        captured["method"] = method
+        captured["path"] = path
+        captured["json"] = kwargs["json"]
+        return {"success": True}
+
+    service = SquadService()
+    monkeypatch.setattr(service, "_request", fake_request)
+
+    response = service.initiate_payment(
+        email="billing@example.com",
+        amount_naira=5000,
+        customer_name="Ogun Ministry",
+        transaction_ref="LTC-123",
+        callback_url="https://example.com/callback",
+    )
+
+    assert response == {"success": True}
+    assert captured["method"] == "POST"
+    assert captured["path"] == "/transaction/initiate"
+    assert captured["json"]["amount"] == 500000
+    assert captured["json"]["payment_channels"] == ["card", "bank", "ussd", "transfer"]
+
+
 def test_webhook_reference_extraction_supports_documented_shape() -> None:
     payload = {
         "Event": "charge_successful",

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.schemas.squad import SquadWebhookAck
+from app.services.billing import BillingService
 from app.services.squad import (
     SquadAPIError,
     SquadConfigurationError,
@@ -59,6 +60,14 @@ async def receive_squad_webhook(
             status_code=status.HTTP_400_BAD_REQUEST,
             transaction_reference=None,
             description="Missing transaction_reference",
+        )
+
+    purchase = BillingService(db).apply_squad_webhook(payload)
+    if purchase is not None:
+        return _ack(
+            status_code=status.HTTP_200_OK,
+            transaction_reference=str(transaction_reference),
+            description="Credit purchase applied",
         )
 
     viq = SquadWebhookService(db).apply_event(payload)

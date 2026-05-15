@@ -153,6 +153,68 @@ const endpoints: Endpoint[] = [
 }`,
   },
   {
+    id: "biometric-template",
+    group: "AI checks",
+    title: "Verify biometric template",
+    method: "POST",
+    path: "/api/v1/ai/biometrics/verify-template",
+    auth: "X-Lattice-API-Key",
+    summary:
+      "Compares a newly captured biometric template against an institution's enrolled biometric template.",
+    parameters: [
+      { name: "enrolled_template", type: "object", required: "Yes", description: "Existing biometric template from the institution's HR or identity system." },
+      { name: "captured_template", type: "object", required: "Yes", description: "Fresh biometric template captured during verification." },
+      { name: "threshold", type: "number", required: "No", description: "Similarity threshold. Defaults to 0.86." },
+    ],
+    request: `curl -X POST "${links.apiBase}/ai/biometrics/verify-template" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Lattice-API-Key: YOUR_LATTICE_API_KEY" \\
+  -d '{
+    "enrolled_template": {
+      "modality": "fingerprint",
+      "vector": [0.12, 0.43, 0.52, 0.18, 0.76, 0.22, 0.31, 0.64]
+    },
+    "captured_template": {
+      "modality": "fingerprint",
+      "vector": [0.11, 0.44, 0.50, 0.2, 0.75, 0.23, 0.3, 0.65]
+    },
+    "threshold": 0.86
+  }'`,
+    response: `{
+  "status": "BIOMETRIC_MATCH",
+  "similarity": 0.998421,
+  "threshold": 0.86,
+  "modality": "fingerprint",
+  "reference_source": "request.enrolled_template"
+}`,
+  },
+  {
+    id: "enroll-worker-biometric",
+    group: "AI checks",
+    title: "Enroll worker biometric",
+    method: "POST",
+    path: "/api/v1/ai/biometrics/workers/{worker_id}/enroll",
+    auth: "X-Lattice-API-Key",
+    summary: "Stores a worker's enrolled biometric template for future verification sessions.",
+    parameters: [
+      { name: "worker_id", type: "path string", required: "Yes", description: "Worker record receiving the enrolled template." },
+      { name: "template", type: "object", required: "Yes", description: "Face, fingerprint, iris, or voice template vector plus optional provider metadata." },
+    ],
+    request: `{
+  "template": {
+    "modality": "face",
+    "provider": "Institution HR biometric register",
+    "vector": [0.12, 0.43, 0.52, 0.18, 0.76, 0.22, 0.31, 0.64]
+  }
+}`,
+    response: `{
+  "worker_id": "wrk_123",
+  "status": "ENROLLED",
+  "modality": "face",
+  "quality": { "usable": true, "dimension": 8 }
+}`,
+  },
+  {
     id: "account-lookup",
     group: "Squad bridge",
     title: "Account lookup",
@@ -174,6 +236,35 @@ const endpoints: Endpoint[] = [
     "account_name": "JENNY SQUAD",
     "account_number": "0123456789"
   }
+}`,
+  },
+  {
+    id: "buy-credits",
+    group: "Billing",
+    title: "Buy verification credits",
+    method: "POST",
+    path: "/api/v1/billing/credit-purchases",
+    auth: "X-Lattice-API-Key",
+    summary:
+      "Initiates a Squad checkout for Lattice credits. Each successful verification consumes one credit.",
+    parameters: [
+      { name: "credits", type: "number", required: "Yes", description: "Number of verification credits to purchase." },
+      { name: "customer_name", type: "string", required: "Yes", description: "Institution or billing account name." },
+      { name: "email", type: "string", required: "Yes", description: "Billing email used by Squad checkout." },
+    ],
+    request: `curl -X POST "${links.apiBase}/billing/credit-purchases" \\
+  -H "Content-Type: application/json" \\
+  -H "X-Lattice-API-Key: YOUR_LATTICE_API_KEY" \\
+  -d '{
+    "credits": 1000,
+    "customer_name": "Ogun State Ministry of Education",
+    "email": "billing@education.og.gov.ng"
+  }'`,
+    response: `{
+  "credits": 1000,
+  "amount_naira": "50000.00",
+  "status": "PENDING",
+  "checkout_url": "https://checkout.squadco.com/..."
 }`,
   },
   {
@@ -208,7 +299,10 @@ const pageLinks = [
   { href: "#submit-evidence", label: "Submit evidence" },
   { href: "#finalize-session", label: "Finalize session" },
   { href: "#document-consistency", label: "Document consistency" },
+  { href: "#biometric-template", label: "Biometric template" },
+  { href: "#enroll-worker-biometric", label: "Enroll biometric" },
   { href: "#account-lookup", label: "Account lookup" },
+  { href: "#buy-credits", label: "Buy credits" },
   { href: "#squad-webhook", label: "Squad webhook" },
 ];
 
@@ -227,7 +321,15 @@ const navGroups = [
   },
   {
     title: "AI checks",
-    items: [{ href: "#document-consistency", method: "POST", label: "Document consistency" }],
+    items: [
+      { href: "#document-consistency", method: "POST", label: "Document consistency" },
+      { href: "#biometric-template", method: "POST", label: "Biometric template" },
+      { href: "#enroll-worker-biometric", method: "POST", label: "Enroll biometric" },
+    ],
+  },
+  {
+    title: "Billing",
+    items: [{ href: "#buy-credits", method: "POST", label: "Buy credits" }],
   },
   {
     title: "Squad bridge",

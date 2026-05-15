@@ -1,6 +1,7 @@
 import secrets
 from datetime import datetime
 from decimal import Decimal
+from difflib import SequenceMatcher
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
@@ -480,6 +481,57 @@ def get_public_exercise(
     return exercise
 
 
+@router.get("/public/verification-exercises/{public_token}/staff-match")
+def match_public_exercise_staff(
+    public_token: str,
+    worker_code: str = Query(..., min_length=2),
+    full_name: str = Query(..., min_length=2),
+    date_of_birth: str | None = Query(default=None),
+    phone: str | None = Query(default=None),
+    db: Session = db_session,
+) -> dict[str, Any]:
+    exercise = _published_exercise(db, public_token)
+    worker = (
+        db.query(Worker)
+        .filter(
+            Worker.worker_code == worker_code.strip().upper(),
+            Worker.ministry == exercise.ministry,
+        )
+        .one_or_none()
+    )
+    if worker is None:
+        return {
+            "status": "NO_MATCH",
+            "decision": "REVIEW",
+            "message": "Staff ID was not found in this ministry nominal roll.",
+            "checks": {"staff_id": False, "name": False, "date_of_birth": False, "phone": False},
+        }
+
+    name_score = _name_similarity(worker.full_name, full_name)
+    dob_matches = _date_text(worker.date_of_birth) == _date_text(date_of_birth) if date_of_birth else None
+    phone_matches = _last4(worker.phone) == _last4(phone) if phone else None
+    passed = name_score >= 0.82 and dob_matches is not False and phone_matches is not False
+    return {
+        "status": "MATCH" if passed else "REVIEW",
+        "decision": "PASS" if passed else "REVIEW",
+        "message": "Staff identity matched payroll record." if passed else "Staff ID exists, but one or more identity fields need HR review.",
+        "worker": {
+            "id": worker.id,
+            "worker_code": worker.worker_code,
+            "full_name": worker.full_name,
+            "department": worker.department,
+            "phone_last4": _last4(worker.phone),
+        },
+        "checks": {
+            "staff_id": True,
+            "name": name_score >= 0.82,
+            "name_score": round(name_score, 3),
+            "date_of_birth": dob_matches,
+            "phone": phone_matches,
+        },
+    }
+
+
 @router.post(
     "/public/verification-exercises/{public_token}/submissions",
     response_model=ExerciseSubmissionResponse,
@@ -544,6 +596,8 @@ async def create_public_exercise_upload_submission(
     full_name: str = Form(...),
     worker_code: str | None = Form(default=None),
     phone: str | None = Form(default=None),
+    date_of_birth: str | None = Form(default=None),
+    biometric_status: str | None = Form(default=None),
     liveness_status: str | None = Form(default=None),
     files: list[UploadFile] = upload_files,
     db: Session = db_session,
@@ -582,11 +636,20 @@ async def create_public_exercise_upload_submission(
         for file in files[:10]
     ]
     extracted = extract_staff_document_payload(uploaded_documents)
-    required = set(exercise.documents or [])
+    required = {_document_key(item) for item in exercise.documents or []}
     submitted = set(extracted["submitted_documents"])
     missing = sorted(required - submitted) if required else []
+    identity = _submission_identity_result(
+        worker=worker,
+        full_name=full_name,
+        date_of_birth=date_of_birth,
+        phone=phone,
+        worker_code=worker_code,
+    )
     document_status = "DOCUMENT_INCOMPLETE" if missing else "DOCUMENTS_SUBMITTED"
-    needs_review = bool(missing) or (
+    needs_review = identity["status"] != "MATCH" or bool(missing) or (
+        "biometric_match" in exercise.rules and biometric_status != "BIOMETRIC_MATCH"
+    ) or (
         "proof_of_life" in exercise.rules and liveness_status != "PASSED"
     )
 
@@ -600,10 +663,13 @@ async def create_public_exercise_upload_submission(
         decision="REVIEW" if needs_review else "PASS",
         payload={
             "phone": phone,
+            "date_of_birth": date_of_birth,
+            "biometric_status": biometric_status,
+            "identity": identity,
             "exercise_name": exercise.name,
             "documents_required": exercise.documents,
             "documents_submitted": sorted(submitted),
-            "missing_documents": missing,
+            "missing_documents": [_document_label(item) for item in missing],
             "uploaded_files": [
                 {
                     "filename": document["filename"],
@@ -726,6 +792,23 @@ def _exercise(db: Session, exercise_id: str) -> VerificationExercise:
     return exercise
 
 
+def _published_exercise(db: Session, public_token: str) -> VerificationExercise:
+    exercise = (
+        db.query(VerificationExercise)
+        .filter(
+            VerificationExercise.public_token == public_token,
+            VerificationExercise.status == "PUBLISHED",
+        )
+        .one_or_none()
+    )
+    if exercise is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="published verification exercise not found",
+        )
+    return exercise
+
+
 def _resolve_viq(
     db: Session,
     *,
@@ -746,6 +829,100 @@ def _resolve_viq(
 
 def _worker_verification_url(session_token: str) -> str:
     return f"{settings.public_frontend_url.rstrip('/')}/verify/{session_token}"
+
+
+def _submission_identity_result(
+    *,
+    worker: Worker | None,
+    full_name: str,
+    date_of_birth: str | None,
+    phone: str | None,
+    worker_code: str | None,
+) -> dict[str, Any]:
+    if worker is None:
+        return {
+            "status": "NO_MATCH",
+            "message": "Staff ID was not found in the nominal roll.",
+            "checks": {"staff_id": False, "name": False, "date_of_birth": False, "phone": False},
+            "submitted_worker_code": worker_code,
+        }
+    name_score = _name_similarity(worker.full_name, full_name)
+    dob_matches = _date_text(worker.date_of_birth) == _date_text(date_of_birth) if date_of_birth else None
+    phone_matches = _last4(worker.phone) == _last4(phone) if phone else None
+    passed = name_score >= 0.82 and dob_matches is not False and phone_matches is not False
+    return {
+        "status": "MATCH" if passed else "REVIEW",
+        "message": "Submitted identity matches payroll record." if passed else "Submitted identity needs HR review.",
+        "checks": {
+            "staff_id": True,
+            "name": name_score >= 0.82,
+            "name_score": round(name_score, 3),
+            "date_of_birth": dob_matches,
+            "phone": phone_matches,
+        },
+    }
+
+
+def _document_key(value: str) -> str:
+    normalized = value.strip().lower().replace("&", "and")
+    aliases = {
+        "appointment letter": "appointment_letter",
+        "birth certificate / declaration of age": "birth_certificate",
+        "birth certificate": "birth_certificate",
+        "declaration of age": "birth_certificate",
+        "last promotion letter": "promotion_letter",
+        "promotion letter": "promotion_letter",
+        "posting letter": "posting_letter",
+        "staff id card": "staff_id_card",
+        "bvn identity record": "bvn_identity_record",
+    }
+    return aliases.get(normalized, normalized.replace(" ", "_").replace("/", "_"))
+
+
+def _document_label(value: str) -> str:
+    labels = {
+        "appointment_letter": "Appointment letter",
+        "birth_certificate": "Birth certificate / declaration of age",
+        "promotion_letter": "Last promotion letter",
+        "posting_letter": "Posting letter",
+        "staff_id_card": "Staff ID card",
+        "bvn_identity_record": "BVN identity record",
+    }
+    return labels.get(value, value.replace("_", " ").title())
+
+
+def _name_similarity(left: str | None, right: str | None) -> float:
+    def normalize(value: str | None) -> str:
+        return " ".join("".join(char.lower() if char.isalnum() else " " for char in (value or "")).split())
+
+    expected = normalize(left)
+    submitted = normalize(right)
+    if not expected or not submitted:
+        return 0.0
+    expected_parts = set(expected.split())
+    submitted_parts = set(submitted.split())
+    token_score = len(expected_parts & submitted_parts) / max(len(expected_parts | submitted_parts), 1)
+    sequence_score = SequenceMatcher(None, expected, submitted).ratio()
+    return max(token_score, sequence_score)
+
+
+def _date_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%d/%m/%Y"):
+        try:
+            return datetime.strptime(text[:10], fmt).date().isoformat()
+        except ValueError:
+            continue
+    return text[:10]
+
+
+def _last4(value: str | None) -> str | None:
+    digits = "".join(char for char in (value or "") if char.isdigit())
+    return digits[-4:] if digits else None
 
 
 def _initiate_transfer_for_viq(db: Session, viq: VIQ) -> dict[str, Any]:

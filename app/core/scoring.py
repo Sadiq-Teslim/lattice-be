@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 LIVENESS_FAIL = "LIVENESS_FAIL"
 DEEPFAKE_DETECTED = "DEEPFAKE_DETECTED"
 FACE_MISMATCH = "FACE_MISMATCH"
+BIOMETRIC_MISMATCH = "BIOMETRIC_MISMATCH"
 ANOMALY_FLAGGED = "ANOMALY_FLAGGED"
 BVN_MISMATCH = "BVN_MISMATCH"
 LIVENESS_UNVERIFIED = "LIVENESS_UNVERIFIED"
@@ -21,6 +22,7 @@ class VerificationSignals:
     liveness_attempts: int = 0
     deepfake_status: str | None = None
     face_match_status: str | None = None
+    biometric_status: str | None = None
     anomaly_flagged: bool = False
     bvn_status: str | None = None
     document_status: str | None = None
@@ -44,6 +46,7 @@ def compute_trust_score(signals: VerificationSignals) -> ScoreBreakdown:
     liveness_status = _normalize(signals.liveness_status)
     deepfake_status = _normalize(signals.deepfake_status)
     face_match_status = _normalize(signals.face_match_status)
+    biometric_status = _normalize(signals.biometric_status)
     bvn_status = _normalize(signals.bvn_status)
     document_status = _normalize(signals.document_status)
 
@@ -65,6 +68,10 @@ def compute_trust_score(signals: VerificationSignals) -> ScoreBreakdown:
     if face_match_status == FACE_MISMATCH:
         score = _deduct(score, deductions, FACE_MISMATCH, 30)
         flags.append(FACE_MISMATCH)
+
+    if biometric_status == BIOMETRIC_MISMATCH:
+        score = _deduct(score, deductions, BIOMETRIC_MISMATCH, 35)
+        flags.append(BIOMETRIC_MISMATCH)
 
     if signals.anomaly_flagged:
         score = _deduct(score, deductions, ANOMALY_FLAGGED, 20)

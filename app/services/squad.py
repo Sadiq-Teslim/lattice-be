@@ -114,6 +114,30 @@ class SquadService:
         }
         return self._request("POST", settings.squad_sms_endpoint, json=payload)
 
+    def initiate_payment(
+        self,
+        *,
+        email: str,
+        amount_naira: Decimal,
+        customer_name: str,
+        transaction_ref: str,
+        callback_url: str,
+        payment_channels: list[str] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        payload = {
+            "email": email,
+            "amount": int(amount_naira * 100),
+            "currency": "NGN",
+            "customer_name": customer_name,
+            "initiate_type": "inline",
+            "transaction_ref": transaction_ref,
+            "callback_url": callback_url,
+            "payment_channels": payment_channels or ["card", "bank", "ussd", "transfer"],
+            "metadata": metadata or {},
+        }
+        return self._request("POST", "/transaction/initiate", json=payload)
+
     def verify_webhook_signature(self, *, raw_body: bytes, header_signature: str | None) -> bool:
         if not header_signature:
             return False

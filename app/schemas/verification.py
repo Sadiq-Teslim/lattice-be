@@ -30,6 +30,15 @@ class FaceMatchEvidence(BaseModel):
     captured_at: str | None = None
 
 
+class BiometricEvidence(BaseModel):
+    status: Literal["BIOMETRIC_MATCH", "BIOMETRIC_MISMATCH"]
+    modality: Literal["face", "fingerprint", "iris", "voice"] = "face"
+    similarity: float | None = Field(default=None, ge=0, le=1)
+    threshold: float | None = Field(default=None, ge=0, le=1)
+    reference_source: str | None = None
+    captured_at: str | None = None
+
+
 class BvnEvidence(BaseModel):
     status: Literal["BVN_MATCH", "BVN_MISMATCH"]
     provider: Literal["SQUAD"]
@@ -58,6 +67,7 @@ class VerificationEvidenceSubmitRequest(BaseModel):
     liveness: LivenessEvidence | None = None
     deepfake: DeepfakeEvidence | None = None
     face_match: FaceMatchEvidence | None = None
+    biometric: BiometricEvidence | None = None
     bvn: BvnEvidence | None = None
     documents: DocumentEvidence | None = None
     financial_account: FinancialAccountEvidence | None = None

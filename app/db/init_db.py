@@ -2,6 +2,9 @@ from app.db.base import Base
 from app.db.models import (
     VIQ,
     AuditLog,
+    BillingAccount,
+    CreditLedgerEntry,
+    CreditPurchase,
     ExerciseSubmission,
     Job,
     OtpChallenge,
@@ -18,6 +21,9 @@ def init_db() -> None:
     # Importing the model classes above registers them with SQLAlchemy metadata.
     _ = (
         AuditLog,
+        BillingAccount,
+        CreditLedgerEntry,
+        CreditPurchase,
         ExerciseSubmission,
         Job,
         OtpChallenge,

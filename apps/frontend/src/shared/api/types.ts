@@ -196,6 +196,7 @@ export type VerifyAndDisburseResponse = {
   viq: Viq;
   payment_attempted: boolean;
   payment_blocked_reason: string | null;
+  credit_balance: number | null;
 };
 
 export type StaffAction = {
@@ -249,6 +250,37 @@ export type IntegrationReadinessResponse = {
   checks: Record<string, boolean>;
 };
 
+export type BillingAccount = {
+  id: string;
+  name: string;
+  email: string | null;
+  api_key_last4: string;
+  credit_balance: number;
+  status: string;
+  price_per_credit_naira: number;
+};
+
+export type CreditPurchase = {
+  id: string;
+  account_id: string;
+  credits: number;
+  amount_naira: string;
+  transaction_reference: string;
+  checkout_url: string | null;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+};
+
+export type CreditLedgerEntry = {
+  id: string;
+  delta: number;
+  balance_after: number;
+  reason: string;
+  reference: string | null;
+  created_at: string;
+};
+
 export type VerificationExercise = {
   id: string;
   ministry: string;
@@ -276,6 +308,26 @@ export type ExerciseSubmission = {
   liveness_status: string | null;
   payload: Record<string, unknown>;
   created_at: string;
+};
+
+export type PublicStaffMatchResponse = {
+  status: "MATCH" | "REVIEW" | "NO_MATCH" | string;
+  decision: "PASS" | "REVIEW" | "FAIL" | string;
+  message: string;
+  worker?: {
+    id: string;
+    worker_code: string;
+    full_name: string;
+    department: string | null;
+    phone_last4: string | null;
+  };
+  checks: {
+    staff_id: boolean;
+    name: boolean;
+    name_score?: number;
+    date_of_birth?: boolean | null;
+    phone?: boolean | null;
+  };
 };
 
 export type AdminSummary = {

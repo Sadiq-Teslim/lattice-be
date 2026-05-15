@@ -2,7 +2,8 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.scoring import PASS
-from app.db.models import PayCycle, Worker
+from app.db.models import BillingAccount, PayCycle, Worker
+from app.services.billing import BillingService
 from app.schemas.sdk import VerifyAndDisburseRequest
 from app.services.identity import SquadIdentityVerifier
 from app.services.payments import PaymentService
@@ -13,7 +14,14 @@ class SDKService:
     def __init__(self, db: Session) -> None:
         self.db = db
 
-    def verify_and_disburse(self, payload: VerifyAndDisburseRequest) -> dict:
+    def verify_and_disburse(
+        self,
+        payload: VerifyAndDisburseRequest,
+        billing_account: BillingAccount | None = None,
+    ) -> dict:
+        billing_service = BillingService(self.db)
+        if billing_account is not None:
+            billing_service.assert_has_verification_credit(billing_account)
         worker = self._resolve_worker(payload)
         pay_cycle = self._resolve_pay_cycle(payload, worker)
 
@@ -29,6 +37,19 @@ class SDKService:
             evidence=evidence,
         )
         _, viq = orchestrator.finalize_session(session_id=session.id)
+        credit_balance = None
+        if billing_account is not None:
+            billing_account = billing_service.debit_verification_credit(
+                account=billing_account,
+                reference=viq.id,
+                payload={
+                    "worker_id": worker.id,
+                    "worker_code": worker.worker_code,
+                    "pay_cycle_id": pay_cycle.id,
+                    "viq_id": viq.id,
+                },
+            )
+            credit_balance = billing_account.credit_balance
 
         transfer_response = None
         payment_attempted = False
@@ -65,6 +86,7 @@ class SDKService:
             "payment_attempted": payment_attempted,
             "payment_blocked_reason": payment_blocked_reason,
             "transfer": transfer_response,
+            "credit_balance": credit_balance,
         }
 
     def _resolve_worker(self, payload: VerifyAndDisburseRequest) -> Worker:

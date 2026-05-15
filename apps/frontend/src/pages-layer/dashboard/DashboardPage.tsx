@@ -7,13 +7,19 @@ import {
   ClipboardCheck,
   Copy,
   ExternalLink,
+  Eye,
   FileSpreadsheet,
   FileText,
+  Fingerprint,
+  IdCard,
   Link2,
   Plus,
   Search,
   Shield,
+  ShieldCheck,
   Settings2,
+  Smartphone,
+  UploadCloud,
 } from "lucide-react";
 import { Avatar, Drawer, Group, Modal, Paper, SegmentedControl, Select, Text, TextInput } from "@mantine/core";
 import { latticeApi } from "@/shared/api/client";
@@ -22,6 +28,9 @@ import type {
   AnomalyResult,
   AnomalyScanResponse,
   AdminSummary,
+  BillingAccount,
+  CreditLedgerEntry,
+  CreditPurchase,
   DemoBootstrapResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
@@ -49,47 +58,83 @@ type PaginationState = {
   onPageChange: (page: number) => void;
 };
 type ExerciseRule =
-  | "proof_of_life"
   | "identity_bvn"
+  | "biometric_match"
+  | "proof_of_life"
   | "document_consistency"
   | "payroll_anomaly"
   | "media_authenticity";
 
 const PAGE_SIZE = 12;
-const verificationRules: Array<{ key: ExerciseRule; label: string; detail: string }> = [
-  {
-    key: "proof_of_life",
-    label: "Proof of life",
-    detail: "Worker completes a camera liveness challenge before HR accepts the submission.",
-  },
+const verificationRules: Array<{ key: ExerciseRule; label: string; detail: string; badge: string }> = [
   {
     key: "identity_bvn",
     label: "Identity and BVN",
     detail: "Worker identity evidence is checked against payroll and BVN/account records.",
+    badge: "Identity",
+  },
+  {
+    key: "biometric_match",
+    label: "Biometric match",
+    detail: "Fresh biometric evidence is compared with the institution's enrolled biometric record.",
+    badge: "Biometric",
+  },
+  {
+    key: "proof_of_life",
+    label: "Proof of life",
+    detail: "Worker completes a camera liveness challenge before HR accepts the submission.",
+    badge: "Camera",
   },
   {
     key: "document_consistency",
     label: "Document consistency",
     detail: "Dates and personnel file fields are compared for contradictions.",
+    badge: "Documents",
   },
   {
     key: "payroll_anomaly",
     label: "Payroll anomaly",
     detail: "Shared devices, BVNs, IPs, and location clusters are scanned across the cohort.",
+    badge: "Payroll",
   },
   {
     key: "media_authenticity",
     label: "Media authenticity",
     detail: "Captured face evidence is checked for synthetic-media risk when provided.",
+    badge: "Media",
   },
 ];
 const exerciseDocuments = [
-  "Appointment letter",
-  "Birth certificate / declaration of age",
-  "Last promotion letter",
-  "Posting letter",
-  "Staff ID card",
-  "BVN identity record",
+  {
+    label: "Appointment letter",
+    fields: "Appointment date, document number",
+    types: "PDF, image, text",
+  },
+  {
+    label: "Birth certificate / declaration of age",
+    fields: "Date of birth, age declaration",
+    types: "PDF, image",
+  },
+  {
+    label: "Last promotion letter",
+    fields: "Promotion date, grade level",
+    types: "PDF, image",
+  },
+  {
+    label: "Posting letter",
+    fields: "School/LGA posting, effective date",
+    types: "PDF, image",
+  },
+  {
+    label: "Staff ID card",
+    fields: "Staff ID, name, photo",
+    types: "Image, PDF",
+  },
+  {
+    label: "BVN identity record",
+    fields: "BVN name, DOB, phone",
+    types: "PDF, text",
+  },
 ];
 
 export function DashboardPage() {
@@ -116,11 +161,13 @@ export function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [exerciseName, setExerciseName] = useState("Annual Staff Verification Exercise");
   const [exerciseScope, setExerciseScope] = useState("All ministry staff");
+  const [exerciseDeadline, setExerciseDeadline] = useState("2026-06-30");
+  const [exerciseContact, setExerciseContact] = useState("HR Verification Desk");
   const [exerciseDrawerOpen, setExerciseDrawerOpen] = useState(false);
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [exercisePendingDelete, setExercisePendingDelete] = useState<VerificationExercise | null>(null);
   const [selectedExerciseRules, setSelectedExerciseRules] = useState<Set<ExerciseRule>>(
-    new Set(["proof_of_life", "identity_bvn", "document_consistency", "payroll_anomaly"]),
+    new Set(["identity_bvn", "biometric_match", "proof_of_life", "document_consistency", "payroll_anomaly"]),
   );
   const [selectedDocuments, setSelectedDocuments] = useState<Set<string>>(
     new Set(["Appointment letter", "Birth certificate / declaration of age", "Staff ID card"]),
@@ -178,15 +225,6 @@ export function DashboardPage() {
     const eligible = viq?.verdict === "PASS" && !anomaly?.flagged && !investigationIds.has(worker.id);
     return eligible ? sum + Number(worker.salary_amount || 0) : sum;
   }, 0);
-  const batchStatus =
-    payrollStage === "DISBURSED"
-      ? "Eligible salaries released"
-      : payrollStage === "LATTICE_READY"
-        ? "Verification completed"
-        : payrollStage === "IMPORTED"
-          ? "Staff records loaded"
-          : "Loading staff records";
-
   useEffect(() => {
     if (autoSeedStarted.current || workers.length > 0) return;
     autoSeedStarted.current = true;
@@ -395,6 +433,7 @@ export function DashboardPage() {
       });
       if (releasedIds.length) {
         setPayrollStage("DISBURSED");
+        setSelectedWorker(null);
       }
       await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
     }
@@ -433,6 +472,7 @@ export function DashboardPage() {
       setStaffActions((current) => [action, ...current]);
       setDisbursedIds((current) => new Set(current).add(worker.id));
       setPayrollStage("DISBURSED");
+      setSelectedWorker(null);
       await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
     }
   }
@@ -533,7 +573,7 @@ export function DashboardPage() {
     setEditingExerciseId(null);
     setExerciseName("June 2026 Verification Exercise");
     setExerciseScope("Teaching staff only");
-    setSelectedExerciseRules(new Set(["proof_of_life", "identity_bvn", "document_consistency"]));
+    setSelectedExerciseRules(new Set(["identity_bvn", "biometric_match", "proof_of_life", "document_consistency"]));
     setSelectedDocuments(new Set(["Appointment letter", "Birth certificate / declaration of age", "Staff ID card"]));
     setExerciseDrawerOpen(true);
   }
@@ -584,7 +624,6 @@ export function DashboardPage() {
         {["dashboard", "staff", "payroll"].includes(activePage) ? (
           <PageHeader
             activePage={activePage}
-            batchStatus={batchStatus}
             onImport={importNominalRoll}
             onRunGate={runLatticeGate}
             onDisburse={disburseEligible}
@@ -657,6 +696,8 @@ export function DashboardPage() {
             exercises={exercises}
             exerciseName={exerciseName}
             exerciseScope={exerciseScope}
+            exerciseDeadline={exerciseDeadline}
+            exerciseContact={exerciseContact}
             isDrawerOpen={exerciseDrawerOpen}
             publishLoading={loading === "exercise-publish"}
             saveLoading={loading === "exercise-save"}
@@ -672,6 +713,8 @@ export function DashboardPage() {
             onPublish={publishExercise}
             onRuleToggle={toggleExerciseRule}
             onSave={saveExercise}
+            onDeadlineChange={setExerciseDeadline}
+            onContactChange={setExerciseContact}
             onScopeChange={setExerciseScope}
           />
         ) : null}
@@ -800,7 +843,6 @@ function TopBar({ query, onQuery }: { query: string; onQuery: (value: string) =>
 
 function PageHeader({
   activePage,
-  batchStatus,
   onImport,
   onRunGate,
   onDisburse,
@@ -810,7 +852,6 @@ function PageHeader({
   canDisburse,
 }: {
   activePage: ConsolePage;
-  batchStatus: string;
   onImport: () => void;
   onRunGate: () => void;
   onDisburse: () => void;
@@ -826,7 +867,6 @@ function PageHeader({
         <div>
           <p>Ogun State Ministry of Education</p>
           <h1>{pageTitle(activePage)}</h1>
-          <span>{batchStatus}</span>
         </div>
       </div>
       <div className={styles.actions}>
@@ -1016,6 +1056,8 @@ function ExercisesView({
   editingExerciseId,
   exerciseName,
   exerciseScope,
+  exerciseDeadline,
+  exerciseContact,
   isDrawerOpen,
   publishLoading,
   saveLoading,
@@ -1030,12 +1072,16 @@ function ExercisesView({
   onPublish,
   onRuleToggle,
   onSave,
+  onDeadlineChange,
+  onContactChange,
   onScopeChange,
 }: {
   exercises: VerificationExercise[];
   editingExerciseId: string | null;
   exerciseName: string;
   exerciseScope: string;
+  exerciseDeadline: string;
+  exerciseContact: string;
   isDrawerOpen: boolean;
   publishLoading: boolean;
   saveLoading: boolean;
@@ -1050,6 +1096,8 @@ function ExercisesView({
   onPublish: () => void;
   onRuleToggle: (rule: ExerciseRule) => void;
   onSave: () => void;
+  onDeadlineChange: (value: string) => void;
+  onContactChange: (value: string) => void;
   onScopeChange: (value: string) => void;
 }) {
   const editingExercise = editingExerciseId
@@ -1170,7 +1218,7 @@ function ExercisesView({
         opened={isDrawerOpen}
         onClose={onCloseDrawer}
         position="right"
-        size="min(720px, 100vw)"
+        size="min(1040px, 100vw)"
         title={(
           <div className={styles.drawerTitle}>
             <span>{editingExercise ? "Edit verification exercise" : "New verification exercise"}</span>
@@ -1190,63 +1238,145 @@ function ExercisesView({
         withinPortal
       >
         <div className={styles.exerciseDrawerBody}>
-          <Card className={styles.formCard}>
-              <TextInput
-                label="Exercise name"
-                onChange={(event) => onNameChange(event.currentTarget.value)}
-                radius={8}
-                size="md"
-                value={exerciseName}
-              />
-              <Select
-                allowDeselect={false}
-                data={["All ministry staff", "Teaching staff only", "Non-teaching staff only", "Selected departments"]}
-                label="Staff scope"
-                onChange={(value) => onScopeChange(value ?? "All ministry staff")}
-                radius={8}
-                size="md"
-                value={exerciseScope}
-              />
-          </Card>
+          <section className={styles.builderHero}>
+            <div>
+              <span>Programme builder</span>
+              <h2>Configure the staff verification exercise HR will publish</h2>
+              <p>
+                Choose the staff scope, required documents, and checks. The worker link will guide staff
+                through identity, documents, proof of life, and final submission.
+              </p>
+            </div>
+            <div className={styles.builderSummary}>
+              <Metric label="Checks" value={String(selectedRules.size)} />
+              <Metric label="Documents" value={String(selectedDocuments.size)} />
+              <Metric label="Status" value={editingExercise?.status ?? "Draft"} />
+            </div>
+          </section>
 
-          <Card className={styles.formCard}>
-              <h2>Documents to collect</h2>
-              <div className={styles.checkGrid}>
-                {exerciseDocuments.map((document) => (
-                  <button
-                    className={selectedDocuments.has(document) ? styles.checkActive : ""}
-                    key={document}
-                    onClick={() => onDocumentToggle(document)}
-                    type="button"
-                  >
-                    {document}
-                  </button>
-                ))}
-              </div>
-          </Card>
+          <div className={styles.builderLayout}>
+            <div className={styles.builderMain}>
+              <Card className={styles.builderStep}>
+                <div className={styles.stepMarker}>
+                  <span>1</span>
+                  <div>
+                    <h2>Programme details</h2>
+                    <p>Define who this exercise applies to and when HR expects completion.</p>
+                  </div>
+                </div>
+                <div className={styles.formGrid}>
+                  <TextInput
+                    label="Exercise name"
+                    onChange={(event) => onNameChange(event.currentTarget.value)}
+                    radius={8}
+                    size="md"
+                    value={exerciseName}
+                  />
+                  <Select
+                    allowDeselect={false}
+                    data={["All ministry staff", "Teaching staff only", "Non-teaching staff only", "Selected departments"]}
+                    label="Staff scope"
+                    onChange={(value) => onScopeChange(value ?? "All ministry staff")}
+                    radius={8}
+                    size="md"
+                    value={exerciseScope}
+                  />
+                  <TextInput
+                    label="Deadline"
+                    onChange={(event) => onDeadlineChange(event.currentTarget.value)}
+                    radius={8}
+                    size="md"
+                    type="date"
+                    value={exerciseDeadline}
+                  />
+                  <TextInput
+                    label="HR contact"
+                    onChange={(event) => onContactChange(event.currentTarget.value)}
+                    radius={8}
+                    size="md"
+                    value={exerciseContact}
+                  />
+                </div>
+              </Card>
 
-          <Card className={styles.formCard}>
-              <h2>Verification rules</h2>
-              <p>Choose the checks that run when staff submit the verification form.</p>
-              <div className={styles.ruleGrid}>
-                {verificationRules.map((rule) => (
-                  <button
-                    className={selectedRules.has(rule.key) ? styles.ruleActive : ""}
-                    key={rule.key}
-                    onClick={() => onRuleToggle(rule.key)}
-                    type="button"
-                  >
-                    <strong>{rule.label}</strong>
-                    <span>{rule.detail}</span>
-                  </button>
-                ))}
-              </div>
-          </Card>
+              <Card className={styles.builderStep}>
+                <div className={styles.stepMarker}>
+                  <span>2</span>
+                  <div>
+                    <h2>Verification checks</h2>
+                    <p>Select the checks that decide whether a staff submission passes or needs review.</p>
+                  </div>
+                </div>
+                <div className={styles.ruleGrid}>
+                  {verificationRules.map((rule) => (
+                    <button
+                      className={selectedRules.has(rule.key) ? styles.ruleActive : ""}
+                      key={rule.key}
+                      onClick={() => onRuleToggle(rule.key)}
+                      type="button"
+                    >
+                      <span className={styles.ruleBadge}>{rule.badge}</span>
+                      <strong>{rule.label}</strong>
+                      <span>{rule.detail}</span>
+                    </button>
+                  ))}
+                </div>
+              </Card>
 
-          <div className={styles.generatedLink}>
-              <span>Publish status</span>
-              <strong>{editingExercise?.status ?? "Draft ready"}</strong>
-              {editingExercise?.public_url ? (
+              <Card className={styles.builderStep}>
+                <div className={styles.stepMarker}>
+                  <span>3</span>
+                  <div>
+                    <h2>Documents to collect</h2>
+                    <p>Pick the documents staff must upload and the fields HR expects Lattice to compare.</p>
+                  </div>
+                </div>
+                <div className={styles.documentBuilderList}>
+                  {exerciseDocuments.map((document) => {
+                    const active = selectedDocuments.has(document.label);
+                    return (
+                      <button
+                        className={active ? styles.documentActive : ""}
+                        key={document.label}
+                        onClick={() => onDocumentToggle(document.label)}
+                        type="button"
+                      >
+                        <span className={styles.documentIcon}>
+                          {active ? <ShieldCheck size={20} strokeWidth={1.7} /> : <UploadCloud size={20} strokeWidth={1.7} />}
+                        </span>
+                        <span>
+                          <strong>{document.label}</strong>
+                          <small>{document.fields}</small>
+                        </span>
+                        <em>{document.types}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+            </div>
+
+            <aside className={styles.builderAside}>
+              <Card className={styles.phonePreview}>
+                <div className={styles.previewTop}>
+                  <Smartphone size={22} strokeWidth={1.7} />
+                  <span>Worker link preview</span>
+                </div>
+                <h3>{exerciseName || "Verification exercise"}</h3>
+                <p>{exerciseScope}</p>
+                <div className={styles.previewSteps}>
+                  <span><IdCard size={16} /> Identity match</span>
+                  <span><FileText size={16} /> {selectedDocuments.size} documents</span>
+                  <span><Fingerprint size={16} /> {selectedRules.has("biometric_match") ? "Biometric match" : "No biometric"}</span>
+                  <span><Eye size={16} /> {selectedRules.has("proof_of_life") ? "Proof of life" : "No liveness"}</span>
+                  <span><ClipboardCheck size={16} /> Submit to HR</span>
+                </div>
+              </Card>
+
+              <div className={styles.generatedLink}>
+                <span>Publish status</span>
+                <strong>{editingExercise?.status ?? "Draft ready"}</strong>
+                {editingExercise?.public_url ? (
                 <a
                   className={styles.urlText}
                   href={exercisePublicUrl(editingExercise)}
@@ -1255,9 +1385,11 @@ function ExercisesView({
                 >
                   {exercisePublicUrl(editingExercise)}
                 </a>
-              ) : (
-                <p>Save and publish to generate the worker-facing link.</p>
-              )}
+                ) : (
+                  <p>Save and publish to generate the worker-facing link.</p>
+                )}
+              </div>
+            </aside>
           </div>
 
           <div className={styles.drawerFooter}>
@@ -1424,24 +1556,113 @@ function ReportsView({
 
 function SettingsView() {
   const [readiness, setReadiness] = useState<IntegrationReadinessResponse | null>(null);
+  const [billingAccount, setBillingAccount] = useState<BillingAccount | null>(null);
+  const [purchases, setPurchases] = useState<CreditPurchase[]>([]);
+  const [ledger, setLedger] = useState<CreditLedgerEntry[]>([]);
+  const [credits, setCredits] = useState(100);
+  const [buyerName, setBuyerName] = useState("Ogun State Ministry of Education");
+  const [buyerEmail, setBuyerEmail] = useState("teslim.sadiq@example.com");
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
-    latticeApi.integrationReadiness()
-      .then((result) => {
-        if (alive) setReadiness(result);
+    Promise.all([
+      latticeApi.integrationReadiness(),
+      latticeApi.billingAccount(),
+      latticeApi.listCreditPurchases(),
+      latticeApi.listCreditLedger(),
+    ])
+      .then(([readinessResult, accountResult, purchaseResult, ledgerResult]) => {
+        if (!alive) return;
+        setReadiness(readinessResult);
+        setBillingAccount(accountResult);
+        setPurchases(purchaseResult);
+        setLedger(ledgerResult);
       })
       .catch((err) => {
-        if (alive) setError(err instanceof Error ? err.message : "Readiness check failed");
+        if (alive) setError(err instanceof Error ? err.message : "Settings check failed");
       });
     return () => {
       alive = false;
     };
   }, []);
 
+  async function buyCredits() {
+    setError(null);
+    setPurchaseLoading(true);
+    try {
+      const purchase = await latticeApi.createCreditPurchase({
+        credits,
+        customer_name: buyerName,
+        email: buyerEmail,
+      });
+      setPurchases((current) => [purchase, ...current]);
+      if (purchase.checkout_url) {
+        window.open(purchase.checkout_url, "_blank", "noopener,noreferrer");
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not start Squad checkout");
+    } finally {
+      setPurchaseLoading(false);
+    }
+  }
+
   return (
     <section className={styles.pageStack}>
+      <Card className={styles.billingHero}>
+        <div>
+          <span>Squad-powered credits</span>
+          <h2>Buy Lattice verification credits</h2>
+          <p>
+            Each API key is tied to a billing account. Institutions top up credits with Squad card,
+            bank transfer, USSD, or bank payment, then every verification consumes one credit.
+          </p>
+        </div>
+        <div className={styles.creditBalance}>
+          <span>Available balance</span>
+          <strong>{billingAccount?.credit_balance ?? "..."}</strong>
+          <small>API key ending {billingAccount?.api_key_last4 ?? "...."}</small>
+        </div>
+      </Card>
+      <Card className={styles.formCard}>
+        <h2>Purchase credits</h2>
+        <p>Squad checkout opens after initiation. The wallet is credited automatically by the Squad webhook.</p>
+        {error ? <p className={styles.inlineError}>{error}</p> : null}
+        <div className={styles.purchaseGrid}>
+          <TextInput
+            label="Institution name"
+            onChange={(event) => setBuyerName(event.currentTarget.value)}
+            radius={8}
+            size="md"
+            value={buyerName}
+          />
+          <TextInput
+            label="Billing email"
+            onChange={(event) => setBuyerEmail(event.currentTarget.value)}
+            radius={8}
+            size="md"
+            type="email"
+            value={buyerEmail}
+          />
+          <TextInput
+            label="Credits"
+            min={10}
+            onChange={(event) => setCredits(Number(event.currentTarget.value || 0))}
+            radius={8}
+            size="md"
+            type="number"
+            value={String(credits)}
+          />
+          <Metric
+            label="Amount"
+            value={formatMoney(credits * (billingAccount?.price_per_credit_naira ?? 50))}
+          />
+        </div>
+        <Button loading={purchaseLoading} onClick={buyCredits}>
+          Buy credits with Squad
+        </Button>
+      </Card>
       <Card className={styles.formCard}>
         <h2>Ministry profile</h2>
         <p>Ogun State Ministry of Education payroll verification workspace.</p>
@@ -1460,10 +1681,43 @@ function SettingsView() {
           <Metric label="Hard block" value="Failed life/media checks" />
         </div>
       </Card>
+      <div className={styles.billingGrid}>
+        <Card className={styles.formCard}>
+          <h2>Recent purchases</h2>
+          {purchases.length ? (
+            <DataTable
+              columns={["Credits", "Amount", "Status", "Reference"]}
+              rows={purchases.slice(0, 5).map((purchase) => [
+                String(purchase.credits),
+                formatMoney(Number(purchase.amount_naira)),
+                purchase.status,
+                purchase.transaction_reference,
+              ])}
+            />
+          ) : (
+            <p>No credit purchase yet.</p>
+          )}
+        </Card>
+        <Card className={styles.formCard}>
+          <h2>Credit ledger</h2>
+          {ledger.length ? (
+            <DataTable
+              columns={["Change", "Balance", "Reason", "When"]}
+              rows={ledger.slice(0, 5).map((entry) => [
+                entry.delta > 0 ? `+${entry.delta}` : String(entry.delta),
+                String(entry.balance_after),
+                entry.reason.replaceAll("_", " "),
+                new Date(entry.created_at).toLocaleString(),
+              ])}
+            />
+          ) : (
+            <p>No credit usage yet.</p>
+          )}
+        </Card>
+      </div>
       <Card className={styles.formCard}>
         <h2>Integration readiness</h2>
         <p>Production endpoints and payment rails required for the demo flow.</p>
-        {error ? <p className={styles.inlineError}>{error}</p> : null}
         <div className={styles.profileGrid}>
           <Metric label="Backend" value={readiness?.public_backend_url ?? "Checking..."} />
           <Metric label="Worker app" value={readiness?.worker_verification_base_url ?? "Checking..."} />

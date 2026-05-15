@@ -46,6 +46,14 @@ class SquadWebhookService:
 
 
 def _payment_status_from_webhook(payload: dict[str, Any]) -> str:
+    if webhook_is_successful(payload):
+        return "PAID_AND_VERIFIED"
+    if webhook_is_failed(payload):
+        return "PAYMENT_FAILED"
+    return "WEBHOOK_RECEIVED"
+
+
+def webhook_is_successful(payload: dict[str, Any]) -> bool:
     body = payload.get("Body") if isinstance(payload.get("Body"), dict) else {}
     status = str(
         payload.get("transaction_status")
@@ -54,11 +62,19 @@ def _payment_status_from_webhook(payload: dict[str, Any]) -> str:
         or body.get("status")
         or ""
     ).upper()
-    if status in {"SUCCESS", "SUCCESSFUL", "200"}:
-        return "PAID_AND_VERIFIED"
-    if status in {"FAILED", "FAILURE", "REVERSED"}:
-        return "PAYMENT_FAILED"
-    return "WEBHOOK_RECEIVED"
+    return status in {"SUCCESS", "SUCCESSFUL", "200", "PAID"}
+
+
+def webhook_is_failed(payload: dict[str, Any]) -> bool:
+    body = payload.get("Body") if isinstance(payload.get("Body"), dict) else {}
+    status = str(
+        payload.get("transaction_status")
+        or payload.get("status")
+        or body.get("transaction_status")
+        or body.get("status")
+        or ""
+    ).upper()
+    return status in {"FAILED", "FAILURE", "REVERSED"}
 
 
 def _json_safe(payload: dict[str, Any]) -> dict[str, Any]:

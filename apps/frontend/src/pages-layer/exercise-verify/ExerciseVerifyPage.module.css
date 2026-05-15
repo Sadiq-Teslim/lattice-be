@@ -101,6 +101,33 @@
   font-weight: 800;
 }
 
+.identityMatch,
+.identityReview {
+  display: grid;
+  gap: 2px;
+  border-radius: var(--radius-button);
+  padding: var(--space-md);
+  font-weight: 800;
+}
+
+.identityMatch {
+  border: 1px solid rgba(15, 122, 61, 0.35);
+  background: #ecfdf3;
+  color: var(--color-brand);
+}
+
+.identityReview {
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.identityMatch span,
+.identityReview span {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
 .documentUploadList {
   display: grid;
   gap: var(--space-sm);

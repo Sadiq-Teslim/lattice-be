@@ -75,6 +75,9 @@ class VerificationOrchestrator:
         face_match_status = None
         if isinstance(evidence.get("face_match"), dict):
             face_match_status = evidence["face_match"].get("status")
+        biometric_status = None
+        if isinstance(evidence.get("biometric"), dict):
+            biometric_status = evidence["biometric"].get("status")
         document_status = None
         if isinstance(evidence.get("documents"), dict):
             document_status = evidence["documents"].get("status")
@@ -85,6 +88,7 @@ class VerificationOrchestrator:
                 liveness_attempts=session.attempts,
                 deepfake_status=session.deepfake_status,
                 face_match_status=face_match_status,
+                biometric_status=biometric_status,
                 anomaly_flagged=anomaly_result.flagged,
                 bvn_status=session.bvn_status,
                 document_status=document_status,

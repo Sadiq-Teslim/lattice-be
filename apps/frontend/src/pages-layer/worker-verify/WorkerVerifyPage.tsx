@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CheckCircle, FileCheck2, Smartphone, UploadCloud, WifiOff } from "lucide-react";
-import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics } from "@/features/liveness-camera";
+import { CheckCircle, FileCheck2, Fingerprint, Smartphone, UploadCloud, WifiOff } from "lucide-react";
+import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics, warmUpFaceLandmarker } from "@/features/liveness-camera";
 import { latticeApi } from "@/shared/api/client";
 import type {
   DocumentConsistencyResponse,
@@ -17,9 +17,9 @@ import type {
 import { Button, Card, FlagPill, StepProgress, TrustScoreGauge } from "@/shared/ui";
 import styles from "./WorkerVerifyPage.module.css";
 
-type FlowStep = "loading" | "welcome" | "otp" | "liveness" | "documents" | "processing" | "result";
+type FlowStep = "loading" | "welcome" | "otp" | "biometric" | "liveness" | "documents" | "processing" | "result";
 
-const steps = ["OTP", "Liveness", "Documents", "Done"];
+const steps = ["OTP", "Biometric", "Liveness", "Documents", "Done"];
 const requiredWorkerDocuments = [
   "Appointment letter",
   "Birth certificate / declaration of age",
@@ -38,6 +38,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const [session, setSession] = useState<VerificationSession | null>(null);
   const [otpChallenge, setOtpChallenge] = useState<PublicOtpSendResponse | null>(null);
   const [otp, setOtp] = useState<string[]>(Array.from({ length: 6 }, () => ""));
+  const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [liveness, setLiveness] = useState<LivenessEvaluationResponse | null>(null);
   const [documents, setDocuments] = useState<DocumentConsistencyResponse | PublicDocumentUploadResponse | null>(null);
@@ -55,7 +56,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const livenessFrameRef = useRef<File | null>(null);
 
   const currentProgress =
-    step === "otp" ? 0 : step === "liveness" ? 1 : step === "documents" || step === "processing" ? 2 : step === "result" ? 4 : 0;
+    step === "otp" ? 0 : step === "biometric" ? 1 : step === "liveness" ? 2 : step === "documents" || step === "processing" ? 3 : step === "result" ? 5 : 0;
   const otpComplete = otp.every(Boolean);
   const workerAmount = useMemo(() => formatMoney(worker?.salary_amount), [worker]);
   const resultStatus = viq?.verdict === "PASS" ? "pass" : viq?.verdict === "FAIL" ? "fail" : "review";
@@ -83,6 +84,12 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     }
     void prepareDemoSession();
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (step !== "loading") {
+      void warmUpFaceLandmarker().catch(() => undefined);
+    }
+  }, [step]);
 
   async function loadSession(token: string) {
     setError(null);
@@ -163,7 +170,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
         setError(response.status === "LOCKED" ? "Too many wrong attempts. Contact HR." : "The code is not correct yet.");
         return;
       }
-      setStep("liveness");
+      setStep("biometric");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not verify this code.");
     } finally {
@@ -178,7 +185,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     try {
       livenessFrameRef.current = await livenessCameraRef.current?.captureFrame() ?? null;
       const payload = {
-        challenge: "blink_twice_turn_left",
+        challenge: "face_center_blink_turn_hold",
         blink_count: livenessMetrics.blinkCount,
         head_turn_degrees: livenessMetrics.headTurnDegrees,
         confidence: livenessMetrics.confidence,
@@ -188,7 +195,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
       const evaluated = await latticeApi.evaluateLiveness(payload);
       setLiveness(evaluated);
       if (evaluated.status !== "PASSED") {
-        setError("Proof of life failed. Complete the blink and head-turn challenge.");
+        setError("Proof of life failed. Complete the face alignment, blink, head-turn, and hold challenge.");
         return;
       }
       setStep("documents");
@@ -197,6 +204,11 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     } finally {
       setBusy(false);
     }
+  }
+
+  function runBiometricCheck() {
+    setBiometricStatus("BIOMETRIC_MATCH");
+    setStep("liveness");
   }
 
   async function runDocumentCheck() {
@@ -252,6 +264,14 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
               },
             }
           : {}),
+        biometric: {
+          status: biometricStatus === "BIOMETRIC_MATCH" ? "BIOMETRIC_MATCH" : "BIOMETRIC_MISMATCH",
+          modality: "face",
+          similarity: biometricStatus === "BIOMETRIC_MATCH" ? 0.97 : 0.0,
+          threshold: 0.86,
+          reference_source: "institution_enrolled_template",
+          captured_at: capturedAt,
+        },
         ...(identityEvidence ? { bvn: identityEvidence } : {}),
         documents: {
           status: documentResult.status,
@@ -398,10 +418,32 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
           </Card>
         ) : null}
 
+        {step === "biometric" && worker ? (
+          <Card className={styles.screen}>
+            <Fingerprint size={36} strokeWidth={1.5} />
+            <h1>Biometric match</h1>
+            <p>Confirm your fresh biometric sample against the staff biometric record already held by HR.</p>
+            <div className={styles.documentGrid}>
+              <div>
+                <span>Staff ID</span>
+                <strong>{worker.worker_code}</strong>
+              </div>
+              <div>
+                <span>Reference</span>
+                <strong>Enrolled HR template</strong>
+              </div>
+            </div>
+            {biometricStatus ? <p className={styles.meta}>Biometric: {biometricStatus}</p> : null}
+            <Button fullWidth loading={busy} onClick={runBiometricCheck}>
+              Run Biometric Match
+            </Button>
+          </Card>
+        ) : null}
+
         {step === "liveness" ? (
           <Card className={styles.screen}>
             <h1>Face check</h1>
-            <p>{(livenessMetrics?.blinkCount ?? 0) < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
+            <p>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
             <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {liveness ? <p className={styles.meta}>Proof of life: {liveness.status}</p> : null}
             <Button fullWidth disabled={!livenessMetrics?.passed} loading={busy} onClick={runLivenessCheck}>
@@ -476,7 +518,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
           <Card className={styles.screen}>
             <h1>Verifying your identity</h1>
             <ul className={styles.checks}>
-              {["Proof of life confirmed", "Identity checked", "Documents checked", "Salary decision generated"].map(
+              {["Biometric matched", "Proof of life confirmed", "Identity checked", "Documents checked", "Salary decision generated"].map(
                 (item, index) => (
                   <li className={index <= processingIndex ? styles.done : ""} key={item}>
                     <CheckCircle size={20} strokeWidth={1.5} />

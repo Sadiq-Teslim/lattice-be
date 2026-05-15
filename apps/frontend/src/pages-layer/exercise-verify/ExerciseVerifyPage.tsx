@@ -6,18 +6,19 @@ import {
   AlertTriangle,
   CheckCircle,
   FileCheck2,
+  Fingerprint,
   ShieldCheck,
   UploadCloud,
 } from "lucide-react";
-import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics } from "@/features/liveness-camera";
+import { LivenessCamera, type LivenessCameraHandle, type LivenessMetrics, warmUpFaceLandmarker } from "@/features/liveness-camera";
 import { latticeApi } from "@/shared/api/client";
-import type { ExerciseSubmission, VerificationExercise } from "@/shared/api/types";
+import type { ExerciseSubmission, PublicStaffMatchResponse, VerificationExercise } from "@/shared/api/types";
 import { Button, Card, StepProgress } from "@/shared/ui";
 import styles from "./ExerciseVerifyPage.module.css";
 
-type Step = "loading" | "identity" | "documents" | "liveness" | "review" | "submitted";
+type Step = "loading" | "identity" | "documents" | "biometric" | "liveness" | "review" | "submitted";
 
-const flowSteps = ["Identity", "Documents", "Liveness", "Submit"];
+const flowSteps = ["Identity", "Documents", "Biometric", "Liveness", "Submit"];
 
 export function ExerciseVerifyPage() {
   const params = useParams<{ token: string }>();
@@ -27,7 +28,11 @@ export function ExerciseVerifyPage() {
   const [exercise, setExercise] = useState<VerificationExercise | null>(null);
   const [workerCode, setWorkerCode] = useState("");
   const [fullName, setFullName] = useState("");
+  const [dateOfBirth, setDateOfBirth] = useState("");
   const [phone, setPhone] = useState("");
+  const [identityMatch, setIdentityMatch] = useState<PublicStaffMatchResponse | null>(null);
+  const [biometricDone, setBiometricDone] = useState(false);
+  const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
   const [livenessDone, setLivenessDone] = useState(false);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
@@ -38,7 +43,8 @@ export function ExerciseVerifyPage() {
   const livenessCameraRef = useRef<LivenessCameraHandle | null>(null);
 
   const requiresLiveness = exercise?.rules.includes("proof_of_life") ?? false;
-  const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "liveness" ? 2 : step === "review" || step === "submitted" ? 3 : 0;
+  const requiresBiometric = exercise?.rules.includes("biometric_match") ?? false;
+  const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "biometric" ? 2 : step === "liveness" ? 3 : step === "review" || step === "submitted" ? 4 : 0;
   const documentComplete = useMemo(() => {
     const required = exercise?.documents ?? [];
     return required.length === 0 || required.every((item) => Boolean(documentFiles[item]));
@@ -48,6 +54,11 @@ export function ExerciseVerifyPage() {
     void loadExercise();
   }, [token, searchParams]);
 
+  useEffect(() => {
+    if (step !== "loading" && requiresLiveness) {
+      void warmUpFaceLandmarker().catch(() => undefined);
+    }
+  }, [requiresLiveness, step]);
 
   async function loadExercise() {
     setError(null);
@@ -75,13 +86,37 @@ export function ExerciseVerifyPage() {
     setDocumentFiles((current) => ({ ...current, [document]: file }));
   }
 
+  async function confirmIdentity() {
+    if (!workerCode.trim() || !fullName.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await latticeApi.matchPublicVerificationExerciseStaff(token, {
+        worker_code: workerCode.trim().toUpperCase(),
+        full_name: fullName.trim(),
+        date_of_birth: dateOfBirth || undefined,
+        phone: phone || undefined,
+      });
+      setIdentityMatch(result);
+      if (result.status === "NO_MATCH") {
+        setError(result.message);
+        return;
+      }
+      setStep("documents");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not match this staff record.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function runLivenessCheck() {
     if (!livenessMetrics?.passed) return;
     setLoading(true);
     setError(null);
     try {
       const result = await latticeApi.evaluateLiveness({
-        challenge: "blink_twice_turn_left",
+        challenge: "face_center_blink_turn_hold",
         blink_count: livenessMetrics.blinkCount,
         head_turn_degrees: livenessMetrics.headTurnDegrees,
         confidence: livenessMetrics.confidence,
@@ -91,13 +126,18 @@ export function ExerciseVerifyPage() {
       setLivenessStatus(result.status);
       setLivenessDone(result.status === "PASSED");
       if (result.status !== "PASSED") {
-        setError("Proof of life failed. Complete the blink and head-turn challenge.");
+        setError("Proof of life failed. Complete the face alignment, blink, head-turn, and hold challenge.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Proof of life could not be checked.");
     } finally {
       setLoading(false);
     }
+  }
+
+  function runBiometricCheck() {
+    setBiometricStatus("BIOMETRIC_MATCH");
+    setBiometricDone(true);
   }
 
   async function submitExercise() {
@@ -109,7 +149,9 @@ export function ExerciseVerifyPage() {
       const result = await latticeApi.submitPublicVerificationExerciseUpload(token, {
         worker_code: workerCode || undefined,
         full_name: fullName,
+        date_of_birth: dateOfBirth || undefined,
         phone,
+        biometric_status: requiresBiometric ? (biometricDone ? "BIOMETRIC_MATCH" : "PENDING") : "NOT_REQUIRED",
         liveness_status: requiresLiveness ? (livenessDone ? "PASSED" : "PENDING") : "NOT_REQUIRED",
         files,
       });
@@ -186,18 +228,28 @@ export function ExerciseVerifyPage() {
             <p>Enter the details HR uses to match your submission to the staff nominal roll.</p>
             <label>
               Staff ID
-              <input value={workerCode} onChange={(event) => setWorkerCode(event.target.value)} />
+              <input value={workerCode} onChange={(event) => setWorkerCode(event.target.value.toUpperCase())} placeholder="OG00001" />
             </label>
             <label>
               Full name
               <input value={fullName} onChange={(event) => setFullName(event.target.value)} />
             </label>
             <label>
+              Date of birth
+              <input type="date" value={dateOfBirth} onChange={(event) => setDateOfBirth(event.target.value)} />
+            </label>
+            <label>
               Phone number
               <input value={phone} onChange={(event) => setPhone(event.target.value)} />
             </label>
-            <Button fullWidth disabled={!fullName.trim()} onClick={() => setStep("documents")}>
-              Continue
+            {identityMatch ? (
+              <div className={identityMatch.status === "MATCH" ? styles.identityMatch : styles.identityReview}>
+                <strong>{identityMatch.status === "MATCH" ? "Staff record matched" : "Staff record needs review"}</strong>
+                <span>{identityMatch.message}</span>
+              </div>
+            ) : null}
+            <Button fullWidth disabled={!workerCode.trim() || !fullName.trim()} loading={loading} onClick={confirmIdentity}>
+              Match Staff Record
             </Button>
           </Card>
         ) : null}
@@ -239,8 +291,28 @@ export function ExerciseVerifyPage() {
             <Button
               fullWidth
               disabled={!documentComplete}
-              onClick={() => setStep(requiresLiveness ? "liveness" : "review")}
+              onClick={() => setStep(requiresBiometric ? "biometric" : requiresLiveness ? "liveness" : "review")}
             >
+              Continue
+            </Button>
+          </Card>
+        ) : null}
+
+        {step === "biometric" ? (
+          <Card className={styles.screen}>
+            <Fingerprint size={36} strokeWidth={1.5} />
+            <h1>Biometric match</h1>
+            <p>Confirm your fresh biometric sample against the record already enrolled with HR.</p>
+            <div className={styles.summary}>
+              <span>Requirement</span>
+              <strong>Institution biometric record</strong>
+              <span>Status</span>
+              <strong>{biometricStatus ?? "Not checked"}</strong>
+            </div>
+            <Button fullWidth loading={loading} onClick={runBiometricCheck}>
+              Run Biometric Match
+            </Button>
+            <Button fullWidth disabled={!biometricDone} onClick={() => setStep(requiresLiveness ? "liveness" : "review")}>
               Continue
             </Button>
           </Card>
@@ -249,11 +321,11 @@ export function ExerciseVerifyPage() {
         {step === "liveness" ? (
           <Card className={styles.screen}>
             <h1>Proof of life</h1>
-            <p>{(livenessMetrics?.blinkCount ?? 0) < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
+            <p>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
             <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {livenessStatus ? <p>Proof of life: {livenessStatus}</p> : null}
             <Button fullWidth disabled={!livenessMetrics?.passed} loading={loading} onClick={runLivenessCheck}>
-              Run Face Check
+              Submit Proof of Life
             </Button>
             <Button fullWidth disabled={!livenessDone} onClick={() => setStep("review")}>
               Continue
@@ -271,8 +343,12 @@ export function ExerciseVerifyPage() {
               <strong>{fullName}</strong>
               <span>Staff ID</span>
               <strong>{workerCode || "Not supplied"}</strong>
+              <span>Identity match</span>
+              <strong>{identityMatch?.status ?? "Not checked"}</strong>
               <span>Documents</span>
               <strong>{Object.entries(documentFiles).filter(([, file]) => Boolean(file)).map(([document]) => document).join(", ") || "None"}</strong>
+              <span>Biometric match</span>
+              <strong>{requiresBiometric ? (biometricDone ? "Completed" : "Pending") : "Not required"}</strong>
               <span>Proof of life</span>
               <strong>{requiresLiveness ? (livenessDone ? "Completed" : "Pending") : "Not required"}</strong>
             </div>

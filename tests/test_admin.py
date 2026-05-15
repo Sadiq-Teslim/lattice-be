@@ -7,6 +7,7 @@ from app.api.routes.admin import (
     delete_exercise,
     flag_investigation,
     get_public_exercise,
+    match_public_exercise_staff,
     publish_exercise,
 )
 from app.db.models import VIQ, PayCycle, VerificationSession, Worker
@@ -128,6 +129,37 @@ def test_public_exercise_link_loads_and_accepts_submission(db_session) -> None:
     assert public.id == published.id
     assert submission.exercise_id == published.id
     assert submission.decision == "PASS"
+
+
+def test_public_exercise_staff_match_correlates_identity(db_session) -> None:
+    worker, _, _ = _verified_worker(db_session)
+    worker.worker_code = "OG00001"
+    worker.date_of_birth = "1998-01-01"
+    db_session.commit()
+    exercise = create_exercise(
+        VerificationExerciseCreateRequest(
+            ministry=worker.ministry,
+            name="June 2026 Verification Exercise",
+            scope="Teaching staff only",
+            rules=["proof_of_life"],
+            documents=["Staff ID card"],
+        ),
+        db=db_session,
+    )
+    published = publish_exercise(exercise.id, db=db_session)
+
+    matched = match_public_exercise_staff(
+        published.public_token,
+        worker_code="OG00001",
+        full_name="Adebayo Adeyemi",
+        date_of_birth="1998-01-01",
+        phone="08012345678",
+        db=db_session,
+    )
+
+    assert matched["status"] == "MATCH"
+    assert matched["checks"]["staff_id"] is True
+    assert matched["checks"]["name"] is True
 
 
 def test_admin_can_delete_verification_exercise_and_submissions(db_session) -> None:
