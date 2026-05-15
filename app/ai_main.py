@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import deepfake, face_match, health
+from app.api.routes import deepfake, face_match
 from app.core.config import settings
 
 
@@ -31,7 +31,14 @@ def create_ai_app() -> FastAPI:
                 )
         return await call_next(request)
 
-    app.include_router(health.router, prefix=settings.api_v1_prefix, tags=["health"])
+    @app.get(f"{settings.api_v1_prefix}/health", tags=["health"])
+    def health_check() -> dict[str, str]:
+        return {
+            "status": "ok",
+            "service": "Lattice AI Worker",
+            "environment": settings.app_env,
+        }
+
     app.include_router(deepfake.router, prefix=settings.api_v1_prefix)
     app.include_router(face_match.router, prefix=settings.api_v1_prefix)
     return app

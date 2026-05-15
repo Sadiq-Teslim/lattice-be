@@ -40,6 +40,10 @@ Settings:
 - `PUBLIC_BACKEND_URL`: optional
 - `PUBLIC_FRONTEND_URL`: optional
 
+The AI worker image uses `requirements-ai.txt`, not the full backend dependency list. This keeps
+Postgres, pandas, scikit-learn, and payroll-only packages out of the AI worker image. Torch and
+torchvision are installed from the PyTorch CPU wheel index to avoid pulling CUDA wheels on Render.
+
 Health check:
 
 ```text
