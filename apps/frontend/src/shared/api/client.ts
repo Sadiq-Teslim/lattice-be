@@ -8,6 +8,9 @@ import type {
   ExerciseSubmission,
   LivenessEvaluationResponse,
   PayCycle,
+  PublicOtpSendResponse,
+  PublicOtpVerifyResponse,
+  PublicVerificationSessionResponse,
   ReleaseEligibleResponse,
   SquadAccountLookupResponse,
   StaffAction,
@@ -41,7 +44,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const timeout = window.setTimeout(() => controller.abort(), 25000);
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
-  if (options.body && !headers.has("Content-Type")) {
+  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
   if (options.protected && env.latticeApiKey) {
@@ -268,6 +271,20 @@ export const latticeApi = {
       body: JSON.stringify(payload),
     }),
 
+  classifyDeepfakeFrame: (file: File) => {
+    const body = new FormData();
+    body.set("file", file);
+    return request<{
+      status: "CLEAN" | "DEEPFAKE_DETECTED" | string;
+      synthetic_probability: number;
+      model_name: string;
+      model_version: string;
+    }>("/ai/deepfake/classify-frame", {
+      method: "POST",
+      body,
+    });
+  },
+
   createVerificationSession: (workerId: string, payCycleId: string) =>
     request<VerificationSession>("/verification/sessions", {
       method: "POST",
@@ -292,6 +309,65 @@ export const latticeApi = {
   finalizeVerificationSession: (sessionId: string) =>
     request<VerificationFinalizeResponse>(
       `/verification/sessions/${encodeURIComponent(sessionId)}/finalize`,
+      { method: "POST" },
+    ),
+
+  getPublicVerificationSession: (sessionToken: string) =>
+    request<PublicVerificationSessionResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}`,
+    ),
+
+  sendPublicVerificationOtp: (sessionToken: string) =>
+    request<PublicOtpSendResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/otp/send`,
+      { method: "POST" },
+    ),
+
+  verifyPublicVerificationOtp: (
+    sessionToken: string,
+    payload: { challenge_id: string; otp: string },
+  ) =>
+    request<PublicOtpVerifyResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/otp/verify`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      },
+    ),
+
+  submitPublicVerificationEvidence: (
+    sessionToken: string,
+    evidence: {
+      liveness?: Record<string, unknown>;
+      deepfake?: Record<string, unknown>;
+      face_match?: Record<string, unknown>;
+      bvn?: Record<string, unknown>;
+      documents?: Record<string, unknown>;
+    },
+  ) =>
+    request<PublicVerificationSessionResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/evidence`,
+      {
+        method: "POST",
+        body: JSON.stringify(evidence),
+      },
+    ),
+
+  evaluatePublicVerificationDocuments: (sessionToken: string) =>
+    request<DocumentConsistencyResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/documents/evaluate`,
+      { method: "POST" },
+    ),
+
+  verifyPublicVerificationIdentity: (sessionToken: string) =>
+    request<Record<string, unknown> | null>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/identity/verify`,
+      { method: "POST" },
+    ),
+
+  finalizePublicVerificationSession: (sessionToken: string) =>
+    request<VerificationFinalizeResponse>(
+      `/verification/public/sessions/${encodeURIComponent(sessionToken)}/finalize`,
       { method: "POST" },
     ),
 

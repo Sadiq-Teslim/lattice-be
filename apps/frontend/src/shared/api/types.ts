@@ -116,6 +116,46 @@ export type VerificationFinalizeResponse = {
   viq: Viq;
 };
 
+export type PublicVerificationWorker = {
+  id: string;
+  worker_code: string;
+  full_name: string;
+  phone_last4: string;
+  ministry: string;
+  department: string | null;
+  date_of_birth: string | null;
+  salary_amount: string;
+  status: string;
+};
+
+export type PublicVerificationPayCycle = {
+  id: string;
+  name: string;
+  ministry: string;
+  status: string;
+};
+
+export type PublicVerificationSessionResponse = {
+  session: VerificationSession;
+  worker: PublicVerificationWorker;
+  pay_cycle: PublicVerificationPayCycle;
+  viq: Viq | null;
+};
+
+export type PublicOtpSendResponse = {
+  challenge_id: string;
+  phone_last4: string;
+  status: string;
+  expires_at: string;
+};
+
+export type PublicOtpVerifyResponse = {
+  challenge_id: string;
+  status: string;
+  attempts: number;
+  verified: boolean;
+};
+
 export type LivenessEvaluationResponse = {
   status: "PASSED" | "FAILED";
   confidence: number;

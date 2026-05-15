@@ -1,5 +1,10 @@
 import { WorkerVerifyPage } from "@/pages-layer/worker-verify/WorkerVerifyPage";
 
-export default function VerifySessionPage() {
-  return <WorkerVerifyPage />;
+export default async function VerifySessionPage({
+  params,
+}: {
+  params: Promise<{ sessionToken: string }>;
+}) {
+  const { sessionToken } = await params;
+  return <WorkerVerifyPage sessionToken={sessionToken} />;
 }

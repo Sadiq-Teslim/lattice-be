@@ -1,14 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle, FileCheck2, Smartphone, UploadCloud, WifiOff } from "lucide-react";
 import { latticeApi } from "@/shared/api/client";
 import type {
   DocumentConsistencyResponse,
   LivenessEvaluationResponse,
+  PublicOtpSendResponse,
+  PublicVerificationPayCycle,
+  PublicVerificationWorker,
   VerificationSession,
   Viq,
-  Worker,
 } from "@/shared/api/types";
 import { Button, Card, FlagPill, StepProgress, TrustScoreGauge } from "@/shared/ui";
 import styles from "./WorkerVerifyPage.module.css";
@@ -17,10 +19,17 @@ type FlowStep = "loading" | "welcome" | "otp" | "liveness" | "documents" | "proc
 
 const steps = ["OTP", "Liveness", "Documents", "Done"];
 
-export function WorkerVerifyPage() {
+type Props = {
+  sessionToken?: string;
+};
+
+export function WorkerVerifyPage({ sessionToken }: Props) {
+  const [activeToken, setActiveToken] = useState(sessionToken ?? "");
   const [step, setStep] = useState<FlowStep>("loading");
-  const [worker, setWorker] = useState<Worker | null>(null);
+  const [worker, setWorker] = useState<PublicVerificationWorker | null>(null);
+  const [payCycle, setPayCycle] = useState<PublicVerificationPayCycle | null>(null);
   const [session, setSession] = useState<VerificationSession | null>(null);
+  const [otpChallenge, setOtpChallenge] = useState<PublicOtpSendResponse | null>(null);
   const [otp, setOtp] = useState<string[]>(Array.from({ length: 6 }, () => ""));
   const [blinkCount, setBlinkCount] = useState(0);
   const [turned, setTurned] = useState(false);
@@ -29,9 +38,16 @@ export function WorkerVerifyPage() {
   const [viq, setViq] = useState<Viq | null>(null);
   const [processingIndex, setProcessingIndex] = useState(0);
   const [offline, setOffline] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [cameraReady, setCameraReady] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const currentProgress = step === "otp" ? 0 : step === "liveness" ? 1 : step === "documents" || step === "processing" ? 2 : step === "result" ? 4 : 0;
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const currentProgress =
+    step === "otp" ? 0 : step === "liveness" ? 1 : step === "documents" || step === "processing" ? 2 : step === "result" ? 4 : 0;
   const otpComplete = otp.every(Boolean);
   const workerAmount = useMemo(() => formatMoney(worker?.salary_amount), [worker]);
   const resultStatus = viq?.verdict === "PASS" ? "pass" : viq?.verdict === "FAIL" ? "fail" : "review";
@@ -49,26 +65,76 @@ export function WorkerVerifyPage() {
   }, []);
 
   useEffect(() => {
-    prepareDemoSession();
-  }, []);
+    if (sessionToken) {
+      void loadSession(sessionToken);
+      return;
+    }
+    void prepareDemoSession();
+  }, [sessionToken]);
+
+  useEffect(() => {
+    if (step !== "liveness") {
+      stopCamera();
+      return;
+    }
+    void startCamera();
+    return stopCamera;
+  }, [step]);
+
+  async function loadSession(token: string) {
+    setError(null);
+    setStep("loading");
+    try {
+      const response = await latticeApi.getPublicVerificationSession(token);
+      setActiveToken(token);
+      setWorker(response.worker);
+      setPayCycle(response.pay_cycle);
+      setSession(response.session);
+      if (response.viq) {
+        setViq(response.viq);
+        setStep("result");
+        return;
+      }
+      setStep("welcome");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not open this verification link.");
+    }
+  }
 
   async function prepareDemoSession() {
     setError(null);
+    setStep("loading");
     try {
       const seed = await latticeApi.seedPayroll();
       const workers = await latticeApi.listWorkers(seed.ministry);
       const selected =
-        workers.find((item) => item.risk_metadata?.is_injected_ghost !== true) ?? workers[0];
-      if (!selected) throw new Error("No worker was returned for this verification session.");
+        workers.find((item) => item.risk_metadata?.demo_verifiable === true) ??
+        workers.find((item) => item.risk_metadata?.is_injected_ghost !== true) ??
+        workers[0];
+      if (!selected) throw new Error("No staff record is available for verification.");
       const createdSession = await latticeApi.createVerificationSession(
         selected.id,
         seed.pay_cycle_id,
       );
-      setWorker(selected);
-      setSession(createdSession);
-      setStep("welcome");
+      await loadSession(createdSession.session_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not prepare verification.");
+    }
+  }
+
+  async function beginVerification() {
+    if (!activeToken) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const challenge = await latticeApi.sendPublicVerificationOtp(activeToken);
+      setOtpChallenge(challenge);
+      setOtp(Array.from({ length: 6 }, () => ""));
+      setStep("otp");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not send the verification code.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -81,8 +147,59 @@ export function WorkerVerifyPage() {
     }
   }
 
+  async function confirmOtp() {
+    if (!activeToken || !otpChallenge || !otpComplete) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const response = await latticeApi.verifyPublicVerificationOtp(activeToken, {
+        challenge_id: otpChallenge.challenge_id,
+        otp: otp.join(""),
+      });
+      if (!response.verified) {
+        setError(response.status === "LOCKED" ? "Too many wrong attempts. Contact HR." : "The code is not correct yet.");
+        return;
+      }
+      setStep("liveness");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not verify this code.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("This browser does not allow camera access.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user", width: { ideal: 720 }, height: { ideal: 540 } },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      setCameraReady(true);
+      setCameraError(null);
+    } catch {
+      setCameraReady(false);
+      setCameraError("Camera permission is required for proof of life.");
+    }
+  }
+
+  function stopCamera() {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setCameraReady(false);
+  }
+
   async function runLivenessCheck() {
-    if (!session) return;
+    if (!activeToken || !cameraReady) return;
+    setBusy(true);
     setError(null);
     try {
       const payload = {
@@ -96,23 +213,33 @@ export function WorkerVerifyPage() {
       const evaluated = await latticeApi.evaluateLiveness(payload);
       setLiveness(evaluated);
       if (evaluated.status !== "PASSED") {
-        setError("Liveness failed. Complete the blink and head-turn challenge.");
+        setError("Proof of life failed. Complete the blink and head-turn challenge.");
         return;
       }
       setStep("documents");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Liveness check failed.");
+      setError(err instanceof Error ? err.message : "Proof of life could not be checked.");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function runDocumentCheck() {
-    if (!session || !worker || !liveness) return;
+    if (!activeToken || !session || !liveness) return;
+    setBusy(true);
     setError(null);
     try {
-      const documentResult = await latticeApi.evaluateDocumentConsistency(worker);
+      const [documentResult, identityEvidence, frame] = await Promise.all([
+        latticeApi.evaluatePublicVerificationDocuments(activeToken),
+        latticeApi.verifyPublicVerificationIdentity(activeToken).catch(() => null),
+        captureCameraFrame().catch(() => null),
+      ]);
+      const deepfakeResult = frame
+        ? await latticeApi.classifyDeepfakeFrame(frame).catch(() => null)
+        : null;
       const capturedAt = new Date().toISOString();
       setDocuments(documentResult);
-      await latticeApi.submitVerificationEvidence(session.id, {
+      await latticeApi.submitPublicVerificationEvidence(activeToken, {
         liveness: {
           status: "PASSED",
           confidence: liveness.confidence,
@@ -120,23 +247,18 @@ export function WorkerVerifyPage() {
           challenge: liveness.challenge,
           captured_at: capturedAt,
         },
-        deepfake: {
-          status: "CLEAN",
-          synthetic_probability: 0.02,
-          model_name: "model-backed-inference",
-        },
-        face_match: {
-          status: "MATCH",
-          similarity: 0.98,
-          captured_at: capturedAt,
-        },
-        bvn: {
-          status: "BVN_MATCH",
-          provider: "SQUAD",
-          resolved_name: worker?.full_name,
-          matched_name: worker?.full_name,
-          captured_at: capturedAt,
-        },
+        ...(deepfakeResult
+          ? {
+              deepfake: {
+                status: deepfakeResult.status === "DEEPFAKE_DETECTED" ? "DEEPFAKE_DETECTED" : "CLEAN",
+                synthetic_probability: deepfakeResult.synthetic_probability,
+                model_name: deepfakeResult.model_name,
+                model_version: deepfakeResult.model_version,
+                captured_at: capturedAt,
+              },
+            }
+          : {}),
+        ...(identityEvidence ? { bvn: identityEvidence } : {}),
         documents: {
           status: documentResult.status,
           severity: documentResult.severity,
@@ -147,27 +269,43 @@ export function WorkerVerifyPage() {
       setStep("processing");
       void finalizeSession();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Document verification failed.");
+      setError(err instanceof Error ? err.message : "Documents could not be verified.");
+    } finally {
+      setBusy(false);
     }
   }
 
+  async function captureCameraFrame(): Promise<File | null> {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth || !video.videoHeight) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.88));
+    return blob ? new File([blob], "liveness-frame.jpg", { type: "image/jpeg" }) : null;
+  }
+
   async function finalizeSession() {
-    if (!session) return;
+    if (!activeToken) return;
     setError(null);
     setProcessingIndex(0);
     const timer = window.setInterval(() => {
       setProcessingIndex((current) => Math.min(current + 1, 3));
     }, 900);
     try {
-      const result = await latticeApi.finalizeVerificationSession(session.id);
+      const result = await latticeApi.finalizePublicVerificationSession(activeToken);
       window.clearInterval(timer);
       setProcessingIndex(4);
       setViq(result.viq);
+      setSession(result.session);
       window.setTimeout(() => setStep("result"), 500);
     } catch (err) {
       window.clearInterval(timer);
       setError(err instanceof Error ? err.message : "Verification could not be finalized.");
-      setStep("liveness");
+      setStep("documents");
     }
   }
 
@@ -176,12 +314,14 @@ export function WorkerVerifyPage() {
       <main className={styles.shell}>
         <Card className={styles.centerCard}>
           <img alt="Ogun State Government" className={styles.centerLogo} src="/ogun-logo.png" />
-          <h1>Preparing verification</h1>
+          <h1>Opening verification link</h1>
           <p>Connecting to Ogun State Ministry payroll records.</p>
           {error ? (
             <>
               <div className={styles.error}>{error}</div>
-              <Button fullWidth onClick={prepareDemoSession}>Retry</Button>
+              <Button fullWidth onClick={() => (sessionToken ? loadSession(sessionToken) : prepareDemoSession())}>
+                Retry
+              </Button>
             </>
           ) : null}
         </Card>
@@ -200,7 +340,7 @@ export function WorkerVerifyPage() {
         <section className={styles.resultBody}>
           <TrustScoreGauge score={viq.trust_score} size="large" verdict={viq.verdict} />
           <strong>{workerAmount}</strong>
-          <span>VIQ: {viq.id}</span>
+          <span>Reference: {viq.id}</span>
           <span>Payment status: {viq.payment_status}</span>
           <div className={styles.flagList}>
             {viq.flags.length ? viq.flags.map((flag) => <FlagPill flag={flag} key={flag} />) : "No active flags"}
@@ -218,14 +358,14 @@ export function WorkerVerifyPage() {
           <img alt="Ogun State Government" src="/ogun-logo.png" />
           <div>
             <strong>Ogun Staff Verification</strong>
-            <span>Powered by Lattice</span>
+            <span>Secure payroll release</span>
           </div>
         </header>
 
         {offline ? (
           <div className={styles.offline}>
             <WifiOff size={18} strokeWidth={1.5} />
-            Offline mode. Your result will sync when connection returns.
+            Offline mode. Reconnect before final submission.
           </div>
         ) : null}
         {error ? <div className={styles.error}>{error}</div> : null}
@@ -239,18 +379,18 @@ export function WorkerVerifyPage() {
             <div className={styles.workerBlock}>
               <span>{worker.full_name}</span>
               <strong>{worker.worker_code}</strong>
-              <small>Pay cycle: {session?.pay_cycle_id ?? "Not assigned"}</small>
+              <small>Pay cycle: {payCycle?.name ?? session?.pay_cycle_id ?? "Assigned cycle"}</small>
               <small>Expected: {workerAmount}</small>
             </div>
-            <p>Complete the check from your phone so payroll can release your salary.</p>
-            <Button fullWidth onClick={() => setStep("otp")}>Begin Verification</Button>
+            <p>Complete this check from your phone so payroll can confirm your identity and staff file.</p>
+            <Button fullWidth loading={busy} onClick={beginVerification}>Begin Verification</Button>
           </Card>
         ) : null}
 
         {step === "otp" && worker ? (
           <Card className={styles.screen}>
             <h1>Enter your code</h1>
-            <p>Code sent to the number ending in {worker.phone.slice(-4)}.</p>
+            <p>Code sent to the number ending in {otpChallenge?.phone_last4 ?? worker.phone_last4}.</p>
             <div className={styles.otpGrid}>
               {otp.map((digit, index) => (
                 <input
@@ -264,8 +404,11 @@ export function WorkerVerifyPage() {
                 />
               ))}
             </div>
-            <Button fullWidth disabled={!otpComplete} onClick={() => setStep("liveness")}>
+            <Button fullWidth disabled={!otpComplete} loading={busy} onClick={confirmOtp}>
               Confirm Code
+            </Button>
+            <Button fullWidth variant="secondary" loading={busy} onClick={beginVerification}>
+              Resend Code
             </Button>
           </Card>
         ) : null}
@@ -273,11 +416,13 @@ export function WorkerVerifyPage() {
         {step === "liveness" ? (
           <Card className={styles.screen}>
             <h1>Face check</h1>
-            <p>{blinkCount < 2 ? "Step 1 of 2: blink twice." : "Step 2 of 2: turn your head slightly left."}</p>
+            <p>{blinkCount < 2 ? "Step 1 of 2: blink twice while facing the camera." : "Step 2 of 2: turn your head slightly left."}</p>
             <div className={styles.camera}>
-              <Camera size={56} strokeWidth={1.5} />
+              <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
+              {!cameraReady ? <Camera size={56} strokeWidth={1.5} /> : null}
               <div className={styles.mesh} />
             </div>
+            {cameraError ? <div className={styles.error}>{cameraError}</div> : null}
             <div className={styles.livenessGrid}>
               <Button variant="secondary" onClick={() => setBlinkCount((count) => Math.min(2, count + 1))}>
                 Blink {blinkCount}/2
@@ -286,8 +431,8 @@ export function WorkerVerifyPage() {
                 {turned ? "Head Turned" : "Turn Left"}
               </Button>
             </div>
-            {liveness ? <p className={styles.meta}>Backend liveness: {liveness.status}</p> : null}
-            <Button fullWidth disabled={blinkCount < 2 || !turned} onClick={runLivenessCheck}>
+            {liveness ? <p className={styles.meta}>Proof of life: {liveness.status}</p> : null}
+            <Button fullWidth disabled={blinkCount < 2 || !turned || !cameraReady} loading={busy} onClick={runLivenessCheck}>
               Submit Face Check
             </Button>
           </Card>
@@ -297,7 +442,7 @@ export function WorkerVerifyPage() {
           <Card className={styles.screen}>
             <UploadCloud size={36} strokeWidth={1.5} />
             <h1>Document consistency</h1>
-            <p>Confirm your personnel file so HR can compare dates and identity records.</p>
+            <p>Confirm your personnel file so HR can compare dates, identity records, and staff documents.</p>
             <div className={styles.documentGrid}>
               <div>
                 <span>Staff ID</span>
@@ -311,9 +456,13 @@ export function WorkerVerifyPage() {
                 <span>Department</span>
                 <strong>{worker.department ?? "Not provided"}</strong>
               </div>
+              <div>
+                <span>Payroll amount</span>
+                <strong>{workerAmount}</strong>
+              </div>
             </div>
             {documents ? <p className={styles.meta}>Documents: {documents.status}</p> : null}
-            <Button fullWidth onClick={runDocumentCheck}>Submit Documents</Button>
+            <Button fullWidth loading={busy} onClick={runDocumentCheck}>Submit Documents</Button>
           </Card>
         ) : null}
 
@@ -321,7 +470,7 @@ export function WorkerVerifyPage() {
           <Card className={styles.screen}>
             <h1>Verifying your identity</h1>
             <ul className={styles.checks}>
-              {["Liveness confirmed", "Documents checked", "Payroll record matched", "Salary decision generated"].map(
+              {["Proof of life confirmed", "Identity checked", "Documents checked", "Salary decision generated"].map(
                 (item, index) => (
                   <li className={index <= processingIndex ? styles.done : ""} key={item}>
                     <CheckCircle size={20} strokeWidth={1.5} />
@@ -351,7 +500,7 @@ function formatMoney(value?: string) {
   }).format(Number.isFinite(amount) ? amount : 0);
 }
 
-function formatDisplayDate(value?: string) {
+function formatDisplayDate(value?: string | null) {
   if (!value) return "Not supplied";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;

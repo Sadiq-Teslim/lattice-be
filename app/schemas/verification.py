@@ -98,3 +98,48 @@ class VIQResponse(BaseModel):
 class VerificationFinalizeResponse(BaseModel):
     session: VerificationSessionResponse
     viq: VIQResponse
+
+
+class PublicWorkerVerificationResponse(BaseModel):
+    id: str
+    worker_code: str
+    full_name: str
+    phone_last4: str
+    ministry: str
+    department: str | None
+    date_of_birth: str | None
+    salary_amount: str
+    status: str
+
+
+class PublicPayCycleResponse(BaseModel):
+    id: str
+    name: str
+    ministry: str
+    status: str
+
+
+class PublicVerificationSessionResponse(BaseModel):
+    session: VerificationSessionResponse
+    worker: PublicWorkerVerificationResponse
+    pay_cycle: PublicPayCycleResponse
+    viq: VIQResponse | None = None
+
+
+class PublicOtpSendResponse(BaseModel):
+    challenge_id: str
+    phone_last4: str
+    status: str
+    expires_at: str
+
+
+class PublicOtpVerifyRequest(BaseModel):
+    challenge_id: str
+    otp: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
+
+
+class PublicOtpVerifyResponse(BaseModel):
+    challenge_id: str
+    status: str
+    attempts: int
+    verified: bool
