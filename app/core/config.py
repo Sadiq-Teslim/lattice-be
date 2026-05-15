@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     viq_signing_secret: str = Field(default="change-this-before-demo", min_length=16)
     deepfake_model_path: str | None = None
+    deepfake_model_url: str | None = (
+        "https://huggingface.co/Xicor9/efficientnet-b0-ffpp-c23/resolve/main/"
+        "efficientnet_b0_ffpp_c23.pth"
+    )
     deepfake_threshold: float = 0.85
     face_match_threshold: float = 0.92
     otp_ttl_seconds: int = 90

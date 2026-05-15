@@ -9,7 +9,6 @@ COPY requirements-ai.txt ./
 RUN pip install --no-cache-dir -r requirements-ai.txt
 
 COPY app ./app
-COPY models ./models
 
 ENV PORT=8000
 

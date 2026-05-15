@@ -36,13 +36,16 @@ Settings:
 - Dockerfile path: `Dockerfile.ai`
 - Start command: leave blank
 - `AI_WORKER_API_KEY`: same shared secret as the main API
-- `DEEPFAKE_MODEL_PATH`: `models/deepfake/efficientnet_b0_ffpp_c23.pth`
+- `DEEPFAKE_MODEL_PATH`: optional. Defaults to `/tmp/lattice-ai/efficientnet_b0_ffpp_c23.pth`
+- `DEEPFAKE_MODEL_URL`: optional. Defaults to the Hugging Face model URL for `Xicor9/efficientnet-b0-ffpp-c23`
 - `PUBLIC_BACKEND_URL`: optional
 - `PUBLIC_FRONTEND_URL`: optional
 
 The AI worker image uses `requirements-ai.txt`, not the full backend dependency list. This keeps
 Postgres, pandas, scikit-learn, and payroll-only packages out of the AI worker image. Torch and
 torchvision are installed from the PyTorch CPU wheel index to avoid pulling CUDA wheels on Render.
+The deepfake model is downloaded lazily into `/tmp` the first time the model is used, because
+`models/` is ignored by git and is not available in Render's build context.
 
 Health check:
 

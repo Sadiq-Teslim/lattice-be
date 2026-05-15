@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
+from urllib.request import urlretrieve
 
 from PIL import Image, ImageOps
 
@@ -13,12 +14,14 @@ class DeepfakeModelUnavailable(RuntimeError):
 
 class DeepfakeDetector:
     def __init__(self, model_path: str | None = None, threshold: float | None = None) -> None:
-        resolved_model_path = model_path or settings.deepfake_model_path
-        if not resolved_model_path:
-            raise DeepfakeModelUnavailable("DEEPFAKE_MODEL_PATH is required")
+        resolved_model_path = (
+            model_path
+            or settings.deepfake_model_path
+            or "/tmp/lattice-ai/efficientnet_b0_ffpp_c23.pth"
+        )
         self.model_path = Path(resolved_model_path)
         if not self.model_path.exists():
-            raise DeepfakeModelUnavailable(f"deepfake model not found: {self.model_path}")
+            self._download_model()
 
         try:
             import cv2
@@ -148,6 +151,15 @@ class DeepfakeDetector:
         model.to(self.device)
         model.eval()
         return model
+
+    def _download_model(self) -> None:
+        if not settings.deepfake_model_url:
+            raise DeepfakeModelUnavailable(f"deepfake model not found: {self.model_path}")
+        self.model_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            urlretrieve(settings.deepfake_model_url, self.model_path)
+        except Exception as exc:
+            raise DeepfakeModelUnavailable(f"deepfake model download failed: {exc}") from exc
 
 
 @lru_cache(maxsize=1)

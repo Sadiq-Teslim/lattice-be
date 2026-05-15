@@ -579,9 +579,11 @@ The five-minute demo should prove these moments:
   - `AI_WORKER_API_KEY=<shared-secret>`
 - AI worker env:
   - `AI_WORKER_API_KEY=<same-shared-secret>`
-  - `DEEPFAKE_MODEL_PATH=models/deepfake/efficientnet_b0_ffpp_c23.pth`
+  - `DEEPFAKE_MODEL_PATH` is optional; the worker defaults to `/tmp/lattice-ai/efficientnet_b0_ffpp_c23.pth`
+  - `DEEPFAKE_MODEL_URL` is optional; the worker defaults to the Hugging Face URL for `Xicor9/efficientnet-b0-ffpp-c23`
 - If `AI_WORKER_URL` is set, main API proxies `/api/v1/ai/deepfake/*` and `/api/v1/ai/face-match/*` to the worker.
 - If the worker is down or not configured, payroll, VIQ, document checks, anomaly detection, liveness evidence, OTP, webhooks, and Squad payment gating still work. Deepfake/face-match routes return `503` instead of crashing startup.
+- Do not `COPY models` in Docker. `models/` is gitignored and unavailable to Render; the worker downloads the deepfake model lazily into `/tmp`.
 - Deployment instructions live in `docs/ai-worker-deployment.md`.
 
 ## Next Best Task
