@@ -477,7 +477,18 @@ export const latticeApi = {
 
 function isoDate(value?: string | null) {
   if (!value) return null;
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+  const usDate = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (usDate) {
+    const [, month, day, year] = usDate;
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return null;
   return parsed.toISOString().slice(0, 10);
 }
@@ -485,5 +496,28 @@ function isoDate(value?: string | null) {
 function documentProfile(worker: Worker) {
   const profile = worker.risk_metadata?.document_profile;
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) return {};
-  return profile as Record<string, unknown>;
+  const normalized: Record<string, unknown> = { ...(profile as Record<string, unknown>) };
+  [
+    "payroll_dob",
+    "bvn_dob",
+    "file_dob",
+    "appointment_date",
+    "first_salary_date",
+    "confirmation_date",
+    "last_promotion_date",
+    "retirement_date",
+  ].forEach((field) => {
+    const value = normalized[field];
+    if (typeof value === "string" || value === null || value === undefined) {
+      normalized[field] = isoDate(value);
+    }
+  });
+  if (normalized.document_numbers && typeof normalized.document_numbers === "object") {
+    normalized.document_numbers = Object.fromEntries(
+      Object.entries(normalized.document_numbers as Record<string, unknown>)
+        .filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== "")
+        .map(([key, value]) => [key, String(value)]),
+    );
+  }
+  return normalized;
 }

@@ -23,6 +23,24 @@ def test_clean_document_record_passes() -> None:
     assert result["flags"] == []
 
 
+def test_document_record_accepts_common_date_formats() -> None:
+    payload = DocumentConsistencyRequest(
+        worker_record=StaffDocumentRecord(
+            worker_id="W1",
+            full_name="Adebayo Adeyemi",
+            payroll_dob="07/19/1990",
+            bvn_dob="1990-07-19",
+            file_dob="1990-07-19T00:00:00Z",
+            appointment_date="2014-09-01",
+            first_salary_date="2014-09-30",
+        )
+    )
+
+    result = evaluate_document_consistency(payload)
+
+    assert result["status"] == "DOCUMENTS_CLEAN"
+
+
 def test_date_contradictions_are_flagged() -> None:
     payload = DocumentConsistencyRequest(
         worker_record=StaffDocumentRecord(
