@@ -217,7 +217,14 @@
   background: white;
   color: var(--color-text-primary);
   padding: var(--space-md);
+  cursor: pointer;
   font-weight: 800;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
+}
+
+.documentUploadRow:hover {
+  border-color: rgba(15, 122, 61, 0.45);
+  box-shadow: 0 6px 18px rgba(15, 122, 61, 0.08);
 }
 
 .documentUploadRow.uploaded {
@@ -237,23 +244,77 @@
   overflow-wrap: anywhere;
 }
 
-.documentUploadRow input {
-  width: 100%;
-  min-height: 46px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-button);
-  background: white;
-  color: var(--color-text-primary);
-  padding: 10px;
-  font-weight: 700;
+.hiddenFileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  opacity: 0;
 }
 
-.documentUploadRow small {
+.fileDrop {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  border: 1px dashed rgba(15, 122, 61, 0.35);
+  border-radius: var(--radius-button);
+  background: rgba(236, 253, 243, 0.48);
+  padding: 10px 12px;
+}
+
+.uploaded .fileDrop {
+  border-style: solid;
+  border-color: rgba(15, 122, 61, 0.5);
+  background: white;
+}
+
+.fileDropIcon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: var(--radius-button);
+  background: #ecfdf3;
+  color: var(--color-brand);
+}
+
+.fileDropText {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.fileDropText strong {
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileDropText small {
   min-width: 0;
   overflow-wrap: anywhere;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
+}
+
+.fileDropAction {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-button);
+  background: var(--color-brand);
+  color: white;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .noteList {

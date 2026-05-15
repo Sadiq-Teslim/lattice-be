@@ -219,10 +219,20 @@ export function ExerciseVerifyPage() {
                   </span>
                   <input
                     accept=".pdf,.txt,.md,.csv,image/*"
+                    className={styles.hiddenFileInput}
                     type="file"
                     onChange={(event) => setDocumentFile(document, event.target.files?.[0] ?? null)}
                   />
-                  <small>{documentFiles[document]?.name ?? "PDF, image, or text file required"}</small>
+                  <span className={styles.fileDrop}>
+                    <span className={styles.fileDropIcon}>
+                      <UploadCloud size={20} strokeWidth={1.5} />
+                    </span>
+                    <span className={styles.fileDropText}>
+                      <strong>{documentFiles[document]?.name ?? "No file selected"}</strong>
+                      <small>{documentFiles[document] ? "Ready for document check" : "PDF, image, or text file"}</small>
+                    </span>
+                    <span className={styles.fileDropAction}>{documentFiles[document] ? "Change" : "Upload"}</span>
+                  </span>
                 </label>
               )) : <span>No documents are required for this exercise.</span>}
             </div>
