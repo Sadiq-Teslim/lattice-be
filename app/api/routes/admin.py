@@ -17,6 +17,7 @@ from app.db.models import (
     PayCycle,
     StaffAction,
     VerificationExercise,
+    VerificationSession,
     Worker,
 )
 from app.db.session import get_db
@@ -31,7 +32,13 @@ from app.schemas.admin import (
     VerificationExerciseCreateRequest,
     VerificationExerciseResponse,
     VerificationExerciseUpdateRequest,
+    IntegrationReadinessResponse,
+    WorkerVerificationLinkRequest,
+    WorkerVerificationLinkResponse,
 )
+from app.services.payments import PaymentService
+from app.services.squad import SquadAPIError, SquadConfigurationError, SquadService, squad_error_to_http
+from app.services.verification_orchestrator import VerificationOrchestrator
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 db_session = Depends(get_db)
@@ -183,6 +190,7 @@ def release_eligible(
 
     released: list[StaffAction] = []
     skipped: list[dict[str, str]] = []
+    transfer_results: list[dict[str, Any]] = []
     for worker in workers:
         viq = _resolve_viq(db, worker_id=worker.id, pay_cycle_id=pay_cycle.id, viq_id=None)
         if viq is None or viq.verdict != PASS:
@@ -192,28 +200,136 @@ def release_eligible(
             skipped.append({"worker_id": worker.id, "reason": "flagged for investigation"})
             continue
         if _latest_action(db, worker.id, pay_cycle.id, "APPROVE_PAYMENT") is not None:
-            skipped.append({"worker_id": worker.id, "reason": "already approved"})
+            if payload.initiate_transfers and not viq.squad_transaction_reference:
+                transfer_results.append(_initiate_transfer_for_viq(db, viq))
+            else:
+                skipped.append({"worker_id": worker.id, "reason": "already approved"})
             continue
-        viq.payment_status = "APPROVED_FOR_RELEASE"
-        viq.signed_payload = {**viq.signed_payload, "payment_status": viq.payment_status}
-        viq.signature = sign_payload(viq.signed_payload, settings.viq_signing_secret)
-        released.append(
-            _record_action(
-                db,
-                worker=worker,
-                pay_cycle_id=pay_cycle.id,
-                viq_id=viq.id,
-                action_type="APPROVE_PAYMENT",
-                status="APPROVED",
-                note="Bulk salary release approval",
-                actor=payload.actor,
-                payload={"payment_status": viq.payment_status, "trust_score": viq.trust_score},
+        if not viq.squad_transaction_reference:
+            viq.payment_status = "APPROVED_FOR_RELEASE"
+            viq.signed_payload = {**viq.signed_payload, "payment_status": viq.payment_status}
+            viq.signature = sign_payload(viq.signed_payload, settings.viq_signing_secret)
+            released.append(
+                _record_action(
+                    db,
+                    worker=worker,
+                    pay_cycle_id=pay_cycle.id,
+                    viq_id=viq.id,
+                    action_type="APPROVE_PAYMENT",
+                    status="APPROVED",
+                    note="Bulk salary release approval",
+                    actor=payload.actor,
+                    payload={"payment_status": viq.payment_status, "trust_score": viq.trust_score},
+                )
             )
-        )
+        if payload.initiate_transfers:
+            transfer_results.append(_initiate_transfer_for_viq(db, viq))
     db.commit()
     for action in released:
         db.refresh(action)
-    return ReleaseEligibleResponse(released=released, skipped=skipped)
+    return ReleaseEligibleResponse(
+        released=released,
+        skipped=skipped,
+        transfer_results=transfer_results,
+    )
+
+
+@router.post(
+    "/verification-sessions/worker-link",
+    response_model=WorkerVerificationLinkResponse,
+)
+def create_worker_verification_link(
+    payload: WorkerVerificationLinkRequest,
+    db: Session = db_session,
+) -> WorkerVerificationLinkResponse:
+    worker = _worker(db, payload.worker_id)
+    pay_cycle = db.get(PayCycle, payload.pay_cycle_id)
+    if pay_cycle is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="pay cycle not found")
+
+    session = (
+        db.query(VerificationSession)
+        .filter(
+            VerificationSession.worker_id == worker.id,
+            VerificationSession.pay_cycle_id == pay_cycle.id,
+            VerificationSession.status != "COMPLETED",
+        )
+        .order_by(VerificationSession.created_at.desc())
+        .first()
+    )
+    if session is None:
+        session = VerificationOrchestrator(db).create_session(
+            worker_id=worker.id,
+            pay_cycle_id=pay_cycle.id,
+        )
+    public_url = _worker_verification_url(session.session_token)
+    sms_response = None
+    sms_sent = False
+    if payload.send_sms:
+        try:
+            sms_response = SquadService().send_sms(
+                phone=worker.phone,
+                message=(
+                    f"Ogun State Ministry of Education verification: {public_url}. "
+                    "Complete this before salary release."
+                ),
+            )
+            sms_sent = True
+        except (SquadConfigurationError, SquadAPIError) as exc:
+            raise squad_error_to_http(exc) from exc
+        db.add(
+            AuditLog(
+                worker_id=worker.id,
+                pay_cycle_id=pay_cycle.id,
+                event_type="WORKER_VERIFICATION_LINK_SENT",
+                payload={"session_id": session.id, "public_url": public_url, "sms_response": sms_response},
+            )
+        )
+        db.commit()
+    return WorkerVerificationLinkResponse(
+        worker_id=worker.id,
+        pay_cycle_id=pay_cycle.id,
+        session_id=session.id,
+        session_token=session.session_token,
+        public_url=public_url,
+        sms_sent=sms_sent,
+        sms_response=sms_response,
+    )
+
+
+@router.get("/integrations/readiness", response_model=IntegrationReadinessResponse)
+def integration_readiness() -> IntegrationReadinessResponse:
+    checks = {
+        "public_backend_url": bool(settings.public_backend_url.strip()),
+        "public_frontend_url": bool(settings.public_frontend_url.strip()),
+        "squad_secret_key": bool(settings.squad_secret_key and settings.squad_secret_key.strip()),
+        "squad_public_key": bool(settings.squad_public_key and settings.squad_public_key.strip()),
+        "squad_merchant_id": bool(settings.squad_merchant_id and settings.squad_merchant_id.strip()),
+        "squad_sms_endpoint": bool(settings.squad_sms_endpoint.strip()),
+        "worker_verification_url": bool(settings.public_frontend_url.strip()),
+    }
+    critical = [
+        "public_backend_url",
+        "public_frontend_url",
+        "squad_secret_key",
+        "squad_merchant_id",
+        "squad_sms_endpoint",
+    ]
+    ready = all(checks[item] for item in critical)
+    return IntegrationReadinessResponse(
+        public_backend_url=settings.public_backend_url.rstrip("/"),
+        public_frontend_url=settings.public_frontend_url.rstrip("/"),
+        worker_verification_base_url=f"{settings.public_frontend_url.rstrip('/')}/verify",
+        squad_base_url=settings.squad_base_url,
+        squad_secret_configured=checks["squad_secret_key"],
+        squad_public_key_configured=checks["squad_public_key"],
+        squad_merchant_id_configured=checks["squad_merchant_id"],
+        squad_webhook_url=f"{settings.public_backend_url.rstrip('/')}{settings.api_v1_prefix}/webhooks/squad",
+        squad_sms_endpoint=settings.squad_sms_endpoint,
+        deepfake_model_configured=bool(settings.deepfake_model_path),
+        status="READY" if ready else "ACTION_REQUIRED",
+        checks=checks,
+    )
 
 
 @router.post("/verification-exercises", response_model=VerificationExerciseResponse)
@@ -626,6 +742,29 @@ def _resolve_viq(
     if pay_cycle_id:
         query = query.filter(VIQ.pay_cycle_id == pay_cycle_id)
     return query.order_by(VIQ.created_at.desc()).first()
+
+
+def _worker_verification_url(session_token: str) -> str:
+    return f"{settings.public_frontend_url.rstrip('/')}/verify/{session_token}"
+
+
+def _initiate_transfer_for_viq(db: Session, viq: VIQ) -> dict[str, Any]:
+    try:
+        updated_viq, squad_response = PaymentService(db).initiate_viq_transfer(viq_id=viq.id)
+    except HTTPException as exc:
+        return {
+            "worker_id": viq.worker_id,
+            "viq_id": viq.id,
+            "status": "TRANSFER_FAILED",
+            "reason": exc.detail,
+        }
+    return {
+        "worker_id": updated_viq.worker_id,
+        "viq_id": updated_viq.id,
+        "status": updated_viq.payment_status,
+        "transaction_reference": updated_viq.squad_transaction_reference,
+        "squad_response": squad_response,
+    }
 
 
 def _latest_action(

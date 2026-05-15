@@ -113,3 +113,59 @@ class PaymentService:
         self.db.commit()
         self.db.refresh(viq)
         return viq, transfer_response
+
+    def requery_viq_transfer(self, *, viq_id: str) -> tuple[VIQ, dict[str, Any]]:
+        viq = self.db.get(VIQ, viq_id)
+        if viq is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="VIQ not found")
+        if not viq.squad_transaction_reference:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="payment has not been initiated for this VIQ",
+            )
+
+        try:
+            response = SquadService().requery_transfer(
+                transaction_reference=str(viq.squad_transaction_reference),
+            )
+        except (SquadConfigurationError, SquadAPIError) as exc:
+            raise squad_error_to_http(exc) from exc
+
+        data = response.get("data") if isinstance(response.get("data"), dict) else {}
+        status_value = str(
+            data.get("transaction_status")
+            or data.get("status")
+            or response.get("message")
+            or "REQUERY_RECEIVED"
+        ).upper()
+        if "SUCCESS" in status_value:
+            viq.payment_status = "PAID_AND_VERIFIED"
+        elif "PENDING" in status_value:
+            viq.payment_status = "TRANSFER_PENDING"
+        elif "FAILED" in status_value or "REVERSED" in status_value:
+            viq.payment_status = "TRANSFER_FAILED"
+        else:
+            viq.payment_status = f"TRANSFER_{status_value[:24]}"
+
+        viq.signed_payload = {
+            **viq.signed_payload,
+            "payment_status": viq.payment_status,
+            "squad_requery": response,
+        }
+        viq.signature = sign_payload(viq.signed_payload, settings.viq_signing_secret)
+        self.db.add(
+            AuditLog(
+                worker_id=viq.worker_id,
+                pay_cycle_id=viq.pay_cycle_id,
+                event_type="SQUAD_TRANSFER_REQUERIED",
+                payload={
+                    "viq_id": viq.id,
+                    "transaction_reference": viq.squad_transaction_reference,
+                    "payment_status": viq.payment_status,
+                    "squad_response": response,
+                },
+            )
+        )
+        self.db.commit()
+        self.db.refresh(viq)
+        return viq, response

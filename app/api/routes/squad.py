@@ -8,6 +8,7 @@ from app.schemas.squad import (
     CreateWorkerVirtualAccountRequest,
     InitiateVIQTransferRequest,
     InitiateVIQTransferResponse,
+    RequeryVIQTransferRequest,
     SquadResponse,
 )
 from app.services.identity import normalize_dob, split_name
@@ -125,6 +126,20 @@ def initiate_viq_transfer(
         amount_naira=payload.amount_naira,
         remark=payload.remark,
     )
+    return InitiateVIQTransferResponse(
+        viq_id=viq.id,
+        transaction_reference=str(viq.squad_transaction_reference),
+        payment_status=viq.payment_status,
+        squad_response=squad_response,
+    )
+
+
+@router.post("/transfers/viq/requery", response_model=InitiateVIQTransferResponse)
+def requery_viq_transfer(
+    payload: RequeryVIQTransferRequest,
+    db: Session = db_session,
+) -> InitiateVIQTransferResponse:
+    viq, squad_response = PaymentService(db).requery_viq_transfer(viq_id=payload.viq_id)
     return InitiateVIQTransferResponse(
         viq_id=viq.id,
         transaction_reference=str(viq.squad_transaction_reference),

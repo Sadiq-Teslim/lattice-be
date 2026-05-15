@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     cors_allow_origins: list[str] = ["*"]
     public_frontend_url: str = "https://lattice-be.vercel.app"
+    public_backend_url: str = "https://lattice-be.onrender.com"
 
     database_url: str = "postgresql+psycopg://lattice:lattice@localhost:5432/lattice"
     init_db_on_startup: bool = False

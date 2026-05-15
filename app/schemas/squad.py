@@ -38,6 +38,10 @@ class InitiateVIQTransferResponse(BaseModel):
     squad_response: dict[str, Any]
 
 
+class RequeryVIQTransferRequest(BaseModel):
+    viq_id: str
+
+
 class SquadWebhookAck(BaseModel):
     response_code: int
     transaction_reference: str | None = None

@@ -25,10 +25,12 @@ import type {
   DemoSeedResponse,
   DocumentConsistencyResponse,
   ExerciseSubmission,
+  IntegrationReadinessResponse,
   StaffAction,
   VerificationExercise,
   Viq,
   Worker,
+  WorkerVerificationLinkResponse,
 } from "@/shared/api/types";
 import { Button, Card } from "@/shared/ui";
 import { Sidebar, type ConsolePage } from "@/widgets/sidebar/Sidebar";
@@ -101,6 +103,7 @@ export function DashboardPage() {
   const [exercises, setExercises] = useState<VerificationExercise[]>([]);
   const [exerciseSubmissions, setExerciseSubmissions] = useState<ExerciseSubmission[]>([]);
   const [adminSummary, setAdminSummary] = useState<AdminSummary | null>(null);
+  const [workerLinks, setWorkerLinks] = useState<Record<string, WorkerVerificationLinkResponse>>({});
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
   const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
@@ -223,6 +226,7 @@ export function DashboardPage() {
     setViqs({});
     setDocumentResults({});
     setStaffActions([]);
+    setWorkerLinks({});
     setExercises([]);
     setExerciseSubmissions([]);
     setAdminSummary(null);
@@ -367,17 +371,42 @@ export function DashboardPage() {
   async function disburseEligible() {
     if (!seed) return;
     const result = await runAction("release", () =>
-      latticeApi.releaseEligible({ pay_cycle_id: seed.pay_cycle_id }),
+      latticeApi.releaseEligible({ pay_cycle_id: seed.pay_cycle_id, initiate_transfers: true }),
     );
     if (result) {
       setStaffActions((current) => [...result.released, ...current]);
+      const successfulTransferIds = result.transfer_results
+        .filter((item) => item.status !== "TRANSFER_FAILED")
+        .map((item) => item.worker_id);
+      const releasedIds = result.transfer_results.length
+        ? successfulTransferIds
+        : result.released.map((item) => item.worker_id);
       setDisbursedIds((current) => {
         const next = new Set(current);
-        result.released.forEach((item) => next.add(item.worker_id));
+        releasedIds.forEach((workerId) => next.add(workerId));
         return next;
       });
-      setPayrollStage("DISBURSED");
+      if (releasedIds.length) {
+        setPayrollStage("DISBURSED");
+      }
       await hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
+    }
+  }
+
+  async function generateWorkerLink(worker: Worker, sendSms = false) {
+    if (!seed) return;
+    const result = await runAction(`${sendSms ? "send-link" : "worker-link"}-${worker.id}`, () =>
+      latticeApi.createWorkerVerificationLink({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        send_sms: sendSms,
+      }),
+    );
+    if (result) {
+      setWorkerLinks((current) => ({ ...current, [worker.id]: result }));
+      if (!sendSms && navigator.clipboard) {
+        await navigator.clipboard.writeText(result.public_url).catch(() => undefined);
+      }
     }
   }
 
@@ -673,10 +702,13 @@ export function DashboardPage() {
         isFlagged={selectedWorker ? investigationIds.has(selectedWorker.id) : false}
         isReleased={selectedWorker ? disbursedIds.has(selectedWorker.id) : false}
         viq={selectedViq}
+        verificationLink={selectedWorker ? workerLinks[selectedWorker.id] : undefined}
         worker={selectedWorker}
         onApprove={approveWorker}
         onClose={() => setSelectedWorker(null)}
         onFlag={flagWorker}
+        onGenerateLink={(worker) => generateWorkerLink(worker, false)}
+        onSendLink={(worker) => generateWorkerLink(worker, true)}
       />
     </div>
   );
@@ -1330,6 +1362,23 @@ function ReportsView({
 }
 
 function SettingsView() {
+  const [readiness, setReadiness] = useState<IntegrationReadinessResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    latticeApi.integrationReadiness()
+      .then((result) => {
+        if (alive) setReadiness(result);
+      })
+      .catch((err) => {
+        if (alive) setError(err instanceof Error ? err.message : "Readiness check failed");
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   return (
     <section className={styles.pageStack}>
       <Card className={styles.formCard}>
@@ -1348,6 +1397,17 @@ function SettingsView() {
           <Metric label="Pass threshold" value="80+" />
           <Metric label="Review range" value="50-79" />
           <Metric label="Hard block" value="Failed life/media checks" />
+        </div>
+      </Card>
+      <Card className={styles.formCard}>
+        <h2>Integration readiness</h2>
+        <p>Production endpoints and payment rails required for the demo flow.</p>
+        {error ? <p className={styles.inlineError}>{error}</p> : null}
+        <div className={styles.profileGrid}>
+          <Metric label="Backend" value={readiness?.public_backend_url ?? "Checking..."} />
+          <Metric label="Worker app" value={readiness?.worker_verification_base_url ?? "Checking..."} />
+          <Metric label="Webhook" value={readiness?.squad_webhook_url ?? "Checking..."} />
+          <Metric label="Squad" value={readiness?.status ?? "Checking..."} />
         </div>
       </Card>
     </section>

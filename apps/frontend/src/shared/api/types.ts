@@ -204,6 +204,39 @@ export type StaffAction = {
 export type ReleaseEligibleResponse = {
   released: StaffAction[];
   skipped: Array<{ worker_id: string; reason: string }>;
+  transfer_results: Array<{
+    worker_id: string;
+    viq_id: string;
+    status: string;
+    transaction_reference?: string | null;
+    reason?: string | Record<string, unknown>;
+    squad_response?: Record<string, unknown>;
+  }>;
+};
+
+export type WorkerVerificationLinkResponse = {
+  worker_id: string;
+  pay_cycle_id: string;
+  session_id: string;
+  session_token: string;
+  public_url: string;
+  sms_sent: boolean;
+  sms_response: Record<string, unknown> | null;
+};
+
+export type IntegrationReadinessResponse = {
+  public_backend_url: string;
+  public_frontend_url: string;
+  worker_verification_base_url: string;
+  squad_base_url: string;
+  squad_secret_configured: boolean;
+  squad_public_key_configured: boolean;
+  squad_merchant_id_configured: boolean;
+  squad_webhook_url: string;
+  squad_sms_endpoint: string;
+  deepfake_model_configured: boolean;
+  status: "READY" | "ACTION_REQUIRED" | string;
+  checks: Record<string, boolean>;
 };
 
 export type VerificationExercise = {

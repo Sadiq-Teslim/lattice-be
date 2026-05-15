@@ -2,12 +2,15 @@ import {
   AlertTriangle,
   Banknote,
   CheckCircle,
+  Copy,
   FileText,
+  Link2,
+  Send,
   ShieldCheck,
   User,
   X,
 } from "lucide-react";
-import type { AnomalyResult, Viq, Worker } from "@/shared/api/types";
+import type { AnomalyResult, Viq, Worker, WorkerVerificationLinkResponse } from "@/shared/api/types";
 import { Badge, Button, Card, FlagPill, TrustScoreGauge } from "@/shared/ui";
 import styles from "./WorkerDetailDrawer.module.css";
 
@@ -15,11 +18,14 @@ type WorkerDetailDrawerProps = {
   worker: Worker | null;
   anomaly?: AnomalyResult;
   viq?: Viq;
+  verificationLink?: WorkerVerificationLinkResponse;
   isReleased?: boolean;
   isFlagged?: boolean;
   onClose: () => void;
   onApprove?: (worker: Worker) => void;
   onFlag?: (worker: Worker) => void;
+  onGenerateLink?: (worker: Worker) => void;
+  onSendLink?: (worker: Worker) => void;
 };
 
 const featureLabels: Record<string, string> = {
@@ -34,11 +40,14 @@ export function WorkerDetailDrawer({
   worker,
   anomaly,
   viq,
+  verificationLink,
   isReleased = false,
   isFlagged = false,
   onClose,
   onApprove,
   onFlag,
+  onGenerateLink,
+  onSendLink,
 }: WorkerDetailDrawerProps) {
   if (!worker) return null;
   const flags = viq?.flags ?? (anomaly?.flagged ? ["ANOMALY_FLAGGED"] : []);
@@ -157,6 +166,31 @@ export function WorkerDetailDrawer({
             <Detail label="Verification ID" value={viq?.id ?? "Not generated yet"} />
             <Detail label="Payment reference" value={viq?.squad_transaction_reference ?? "Not released"} />
             <Detail label="Payment status" value={viq?.payment_status ?? paymentStatus} />
+          </div>
+        </Card>
+
+        <Card className={styles.section}>
+          <h3>
+            <Link2 size={18} strokeWidth={1.6} />
+            Worker verification link
+          </h3>
+          {verificationLink ? (
+            <div className={styles.linkBox}>
+              <strong>{verificationLink.public_url}</strong>
+              <span>{verificationLink.sms_sent ? "SMS sent to worker phone." : "Copied for HR sharing."}</span>
+            </div>
+          ) : (
+            <p>Create a private verification link for this staff member to complete OTP, documents, and liveness checks.</p>
+          )}
+          <div className={styles.inlineActions}>
+            <Button onClick={() => onGenerateLink?.(worker)} variant="secondary">
+              <Copy size={17} strokeWidth={1.7} />
+              Generate Link
+            </Button>
+            <Button onClick={() => onSendLink?.(worker)}>
+              <Send size={17} strokeWidth={1.7} />
+              Send SMS
+            </Button>
           </div>
         </Card>
 

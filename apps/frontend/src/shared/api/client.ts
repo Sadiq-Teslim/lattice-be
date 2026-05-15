@@ -6,6 +6,7 @@ import type {
   DemoSeedResponse,
   DocumentConsistencyResponse,
   ExerciseSubmission,
+  IntegrationReadinessResponse,
   LivenessEvaluationResponse,
   PayCycle,
   PublicOtpSendResponse,
@@ -21,6 +22,7 @@ import type {
   VerificationSession,
   Viq,
   VerifyAndDisburseResponse,
+  WorkerVerificationLinkResponse,
   Worker,
 } from "./types";
 
@@ -141,10 +143,30 @@ export const latticeApi = {
       body: JSON.stringify(payload),
     }),
 
-  releaseEligible: (payload: { pay_cycle_id: string; worker_ids?: string[] }) =>
+  releaseEligible: (payload: { pay_cycle_id: string; worker_ids?: string[]; initiate_transfers?: boolean }) =>
     request<ReleaseEligibleResponse>("/admin/disbursements/release-eligible", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+
+  createWorkerVerificationLink: (payload: { worker_id: string; pay_cycle_id: string; send_sms?: boolean }) =>
+    request<WorkerVerificationLinkResponse>("/admin/verification-sessions/worker-link", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  integrationReadiness: () =>
+    request<IntegrationReadinessResponse>("/admin/integrations/readiness"),
+
+  requeryViqTransfer: (viq_id: string) =>
+    request<{
+      viq_id: string;
+      transaction_reference: string;
+      payment_status: string;
+      squad_response: Record<string, unknown>;
+    }>("/squad/transfers/viq/requery", {
+      method: "POST",
+      body: JSON.stringify({ viq_id }),
     }),
 
   listVerificationExercises: (ministry: string) =>

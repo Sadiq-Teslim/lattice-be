@@ -32,11 +32,44 @@ class ReleaseEligibleRequest(BaseModel):
     pay_cycle_id: str
     worker_ids: list[str] = Field(default_factory=list)
     actor: str = "HR Payroll Desk"
+    initiate_transfers: bool = False
 
 
 class ReleaseEligibleResponse(BaseModel):
     released: list[StaffActionResponse]
     skipped: list[dict[str, str]]
+    transfer_results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class WorkerVerificationLinkRequest(BaseModel):
+    worker_id: str
+    pay_cycle_id: str
+    send_sms: bool = False
+
+
+class WorkerVerificationLinkResponse(BaseModel):
+    worker_id: str
+    pay_cycle_id: str
+    session_id: str
+    session_token: str
+    public_url: str
+    sms_sent: bool = False
+    sms_response: dict[str, Any] | None = None
+
+
+class IntegrationReadinessResponse(BaseModel):
+    public_backend_url: str
+    public_frontend_url: str
+    worker_verification_base_url: str
+    squad_base_url: str
+    squad_secret_configured: bool
+    squad_public_key_configured: bool
+    squad_merchant_id_configured: bool
+    squad_webhook_url: str
+    squad_sms_endpoint: str
+    deepfake_model_configured: bool
+    status: str
+    checks: dict[str, bool]
 
 
 class VerificationExerciseCreateRequest(BaseModel):
