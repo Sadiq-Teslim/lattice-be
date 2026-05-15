@@ -28,6 +28,7 @@ import type {
 
 type RequestOptions = RequestInit & {
   protected?: boolean;
+  timeoutMs?: number;
 };
 
 function apiBaseUrl() {
@@ -45,7 +46,7 @@ function apiBaseUrl() {
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 25000);
+  const timeout = window.setTimeout(() => controller.abort(), options.timeoutMs ?? 60000);
   const headers = new Headers(options.headers);
   headers.set("Accept", "application/json");
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
@@ -75,7 +76,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     return payload as T;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("The verification service is taking too long to respond. Please retry.");
+      throw new Error("The verification service is still waking up. Please retry in a moment.");
     }
     throw error;
   } finally {
@@ -89,6 +90,7 @@ export const latticeApi = {
   seedPayroll: () =>
     request<DemoSeedResponse>("/demo/seed", {
       method: "POST",
+      timeoutMs: 90000,
       body: JSON.stringify({
         count: 100,
         ghost_count: 5,
@@ -97,7 +99,7 @@ export const latticeApi = {
       }),
     }),
 
-  listPayCycles: () => request<PayCycle[]>("/pay-cycles?limit=100"),
+  listPayCycles: () => request<PayCycle[]>("/pay-cycles?limit=100", { timeoutMs: 90000 }),
 
   listWorkers: async (ministry: string) => {
     const workers = await request<Worker[]>(`/workers?ministry=${encodeURIComponent(ministry)}&limit=100`);
