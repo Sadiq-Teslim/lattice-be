@@ -29,6 +29,16 @@ export type DemoSeedResponse = {
   injected_ghost_workers: number;
 };
 
+export type DemoBootstrapResponse = {
+  seed: DemoSeedResponse;
+  pay_cycle: PayCycle;
+  workers: Worker[];
+  viqs: Viq[];
+  staff_actions: StaffAction[];
+  exercises: VerificationExercise[];
+  summary: AdminSummary;
+};
+
 export type PayCycle = {
   id: string;
   name: string;

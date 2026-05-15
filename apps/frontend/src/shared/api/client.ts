@@ -3,6 +3,7 @@ import type {
   AnomalyScanResponse,
   AdminSummary,
   BiasAuditResponse,
+  DemoBootstrapResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
   ExerciseSubmission,
@@ -86,6 +87,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
 export const latticeApi = {
   health: () => request<{ status: string; service: string; environment: string }>("/health"),
+
+  bootstrapOgunDemo: () =>
+    request<DemoBootstrapResponse>("/demo/ogun-bootstrap", {
+      timeoutMs: 90000,
+    }),
 
   seedPayroll: () =>
     request<DemoSeedResponse>("/demo/seed", {

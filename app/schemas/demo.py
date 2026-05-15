@@ -1,5 +1,10 @@
 from pydantic import BaseModel, Field
 
+from app.schemas.admin import AdminSummaryResponse, StaffActionResponse, VerificationExerciseResponse
+from app.schemas.pay_cycle import PayCycleResponse
+from app.schemas.verification import VIQResponse
+from app.schemas.worker import WorkerResponse
+
 
 class DemoSeedRequest(BaseModel):
     count: int = Field(default=1000, ge=100, le=10000)
@@ -13,6 +18,16 @@ class DemoSeedResponse(BaseModel):
     ministry: str
     workers_inserted: int
     injected_ghost_workers: int
+
+
+class DemoBootstrapResponse(BaseModel):
+    seed: DemoSeedResponse
+    pay_cycle: PayCycleResponse
+    workers: list[WorkerResponse]
+    viqs: list[VIQResponse]
+    staff_actions: list[StaffActionResponse]
+    exercises: list[VerificationExerciseResponse]
+    summary: AdminSummaryResponse
 
 
 class AnomalySummary(BaseModel):

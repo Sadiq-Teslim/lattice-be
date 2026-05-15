@@ -22,6 +22,7 @@ import type {
   AnomalyResult,
   AnomalyScanResponse,
   AdminSummary,
+  DemoBootstrapResponse,
   DemoSeedResponse,
   DocumentConsistencyResponse,
   ExerciseSubmission,
@@ -219,49 +220,32 @@ export function DashboardPage() {
   }
 
   async function importNominalRoll(options: { navigate?: boolean } = {}) {
-    const result = await runAction("seed", latticeApi.seedPayroll);
+    const result = await runAction("seed", latticeApi.bootstrapOgunDemo);
     if (!result) return;
-    setSeed(result);
-    setAnomalyScan(null);
-    setViqs({});
-    setDocumentResults({});
-    setStaffActions([]);
-    setWorkerLinks({});
-    setExercises([]);
-    setExerciseSubmissions([]);
-    setAdminSummary(null);
-    setDisbursedIds(new Set());
-    setInvestigationIds(new Set());
-    setPayrollStage("IMPORTED");
-    const listedWorkers = await runAction("workers", () => latticeApi.listWorkers(result.ministry));
-    if (listedWorkers) {
-      setWorkers(listedWorkers);
-      setSelectedWorker(null);
-      await hydrateBackendState(result.ministry, result.pay_cycle_id, { skipWorkers: true });
-      if (options.navigate ?? true) {
-        setActivePage("staff");
-      }
+    applyBootstrap(result);
+    setSelectedWorker(null);
+    if (options.navigate ?? true) {
+      setActivePage("staff");
     }
   }
 
+  function applyBootstrap(result: DemoBootstrapResponse) {
+    setSeed(result.seed);
+    setAnomalyScan(null);
+    setViqs(Object.fromEntries(result.viqs.map((viq) => [viq.worker_id, viq])));
+    setDocumentResults({});
+    applyStaffActions(result.staff_actions);
+    setExercises(result.exercises);
+    setWorkerLinks({});
+    setExerciseSubmissions([]);
+    setAdminSummary(result.summary);
+    setPayrollStage("IMPORTED");
+    setWorkers(sortWorkers(result.workers));
+  }
+
   async function loadInitialBatch() {
-    const cycles = await runAction("pay-cycles", latticeApi.listPayCycles);
-    const existing = cycles?.find((cycle) =>
-      cycle.ministry.startsWith("Ogun State Ministry of Education Demo"),
-    );
-    if (existing) {
-      const batch = {
-        pay_cycle_id: existing.id,
-        ministry: existing.ministry,
-        workers_inserted: 0,
-        injected_ghost_workers: 0,
-      };
-      setSeed(batch);
-      setPayrollStage("IMPORTED");
-      await hydrateBackendState(existing.ministry, existing.id);
-      return;
-    }
-    await importNominalRoll({ navigate: false });
+    const result = await runAction("bootstrap", latticeApi.bootstrapOgunDemo);
+    if (result) applyBootstrap(result);
   }
 
   async function hydrateBackendState(
@@ -1600,6 +1584,14 @@ function documentResultsFromActions(actions: StaffAction[]) {
 function objectValue(value: unknown): Record<string, Record<string, unknown>> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   return value as Record<string, Record<string, unknown>>;
+}
+
+function sortWorkers(records: Worker[]) {
+  return [...records].sort((left, right) => {
+    const leftRank = left.risk_metadata?.demo_verifiable ? 0 : 1;
+    const rightRank = right.risk_metadata?.demo_verifiable ? 0 : 1;
+    return leftRank - rightRank || left.worker_code.localeCompare(right.worker_code);
+  });
 }
 
 function namesLookRelated(left: string, right: string) {
