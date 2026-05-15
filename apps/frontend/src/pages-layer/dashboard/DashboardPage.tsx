@@ -1559,10 +1559,6 @@ function SettingsView() {
   const [billingAccount, setBillingAccount] = useState<BillingAccount | null>(null);
   const [purchases, setPurchases] = useState<CreditPurchase[]>([]);
   const [ledger, setLedger] = useState<CreditLedgerEntry[]>([]);
-  const [credits, setCredits] = useState(100);
-  const [buyerName, setBuyerName] = useState("Ogun State Ministry of Education");
-  const [buyerEmail, setBuyerEmail] = useState("teslim.sadiq@example.com");
-  const [purchaseLoading, setPurchaseLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -1588,35 +1584,15 @@ function SettingsView() {
     };
   }, []);
 
-  async function buyCredits() {
-    setError(null);
-    setPurchaseLoading(true);
-    try {
-      const purchase = await latticeApi.createCreditPurchase({
-        credits,
-        customer_name: buyerName,
-        email: buyerEmail,
-      });
-      setPurchases((current) => [purchase, ...current]);
-      if (purchase.checkout_url) {
-        window.open(purchase.checkout_url, "_blank", "noopener,noreferrer");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start Squad checkout");
-    } finally {
-      setPurchaseLoading(false);
-    }
-  }
-
   return (
     <section className={styles.pageStack}>
       <Card className={styles.billingHero}>
         <div>
-          <span>Squad-powered credits</span>
-          <h2>Buy Lattice verification credits</h2>
+          <span>Lattice account</span>
+          <h2>Verification credit wallet</h2>
           <p>
-            Each API key is tied to a billing account. Institutions top up credits with Squad card,
-            bank transfer, USSD, or bank payment, then every verification consumes one credit.
+            This HR workspace consumes Lattice verification credits through its API key. Purchases are
+            managed on the Lattice SDK page so payroll stays focused on staff operations.
           </p>
         </div>
         <div className={styles.creditBalance}>
@@ -1626,41 +1602,11 @@ function SettingsView() {
         </div>
       </Card>
       <Card className={styles.formCard}>
-        <h2>Purchase credits</h2>
-        <p>Squad checkout opens after initiation. The wallet is credited automatically by the Squad webhook.</p>
+        <h2>Credit purchase</h2>
+        <p>Buy credits from the Lattice SDK page beside the API key and developer setup.</p>
         {error ? <p className={styles.inlineError}>{error}</p> : null}
-        <div className={styles.purchaseGrid}>
-          <TextInput
-            label="Institution name"
-            onChange={(event) => setBuyerName(event.currentTarget.value)}
-            radius={8}
-            size="md"
-            value={buyerName}
-          />
-          <TextInput
-            label="Billing email"
-            onChange={(event) => setBuyerEmail(event.currentTarget.value)}
-            radius={8}
-            size="md"
-            type="email"
-            value={buyerEmail}
-          />
-          <TextInput
-            label="Credits"
-            min={10}
-            onChange={(event) => setCredits(Number(event.currentTarget.value || 0))}
-            radius={8}
-            size="md"
-            type="number"
-            value={String(credits)}
-          />
-          <Metric
-            label="Amount"
-            value={formatMoney(credits * (billingAccount?.price_per_credit_naira ?? 50))}
-          />
-        </div>
-        <Button loading={purchaseLoading} onClick={buyCredits}>
-          Buy credits with Squad
+        <Button onClick={() => window.open("/#billing", "_blank", "noopener,noreferrer")}>
+          Open Lattice credits
         </Button>
       </Card>
       <Card className={styles.formCard}>

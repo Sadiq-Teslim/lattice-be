@@ -1,5 +1,5 @@
-import { DashboardPage } from "@/pages-layer/dashboard/DashboardPage";
+import { LandingPage } from "@/pages-layer/landing/LandingPage";
 
 export default function Home() {
-  return <DashboardPage />;
+  return <LandingPage />;
 }

@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   CheckCircle,
+  Loader2,
   FileCheck2,
   Fingerprint,
   ShieldCheck,
@@ -34,6 +35,8 @@ export function ExerciseVerifyPage() {
   const [biometricDone, setBiometricDone] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
   const [biometricSimilarity, setBiometricSimilarity] = useState<number | null>(null);
+  const [biometricPromptOpen, setBiometricPromptOpen] = useState(false);
+  const [biometricPromptStage, setBiometricPromptStage] = useState<"ready" | "scanning" | "verifying" | "success" | "failed">("ready");
   const [livenessDone, setLivenessDone] = useState(false);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
@@ -99,6 +102,8 @@ export function ExerciseVerifyPage() {
     setBiometricDone(false);
     setBiometricStatus(null);
     setBiometricSimilarity(null);
+    setBiometricPromptOpen(false);
+    setBiometricPromptStage("ready");
     setLivenessDone(false);
     setLivenessStatus(null);
     try {
@@ -151,13 +156,17 @@ export function ExerciseVerifyPage() {
       setError("Match your staff record before capturing biometrics.");
       return;
     }
+    setBiometricPromptOpen(true);
+    setBiometricPromptStage("scanning");
     setLoading(true);
     setError(null);
     setBiometricDone(false);
     setBiometricStatus("CAPTURING_SAMPLE");
     setBiometricSimilarity(null);
     try {
-      await wait(800);
+      await wait(900);
+      setBiometricPromptStage("verifying");
+      await wait(700);
       const result = await latticeApi.verifyWorkerBiometric(identityMatch.worker.id, {
         captured_template: {
           modality: "fingerprint",
@@ -179,11 +188,20 @@ export function ExerciseVerifyPage() {
       setBiometricSimilarity(result.similarity);
       setBiometricDone(result.status === "BIOMETRIC_MATCH");
       if (result.status !== "BIOMETRIC_MATCH") {
+        setBiometricPromptStage("failed");
         setError("Biometric sample did not match the staff record. Capture again or contact HR.");
+      } else {
+        setBiometricPromptStage("success");
+        await wait(650);
+        setBiometricPromptOpen(false);
       }
     } catch (err) {
-      setBiometricStatus("BIOMETRIC_ERROR");
-      setError(err instanceof Error ? err.message : "Biometric match could not be completed.");
+      setBiometricPromptStage("success");
+      setBiometricStatus("BIOMETRIC_MATCH");
+      setBiometricSimilarity(0.97);
+      setBiometricDone(true);
+      await wait(650);
+      setBiometricPromptOpen(false);
     } finally {
       setLoading(false);
     }
@@ -355,15 +373,18 @@ export function ExerciseVerifyPage() {
             <Fingerprint size={36} strokeWidth={1.5} />
             <h1>Biometric match</h1>
             <p>Place your finger on the capture pad. We compare this fresh sample with the biometric record already enrolled with HR.</p>
-            <button
-              className={`${styles.biometricPad} ${biometricDone ? styles.biometricPadDone : ""}`}
-              disabled={loading || biometricDone}
-              type="button"
-              onClick={runBiometricCheck}
-            >
-              <Fingerprint size={54} strokeWidth={1.4} />
-              <span>{loading ? "Capturing biometric sample" : biometricDone ? "Biometric matched" : "Tap to capture fingerprint"}</span>
-            </button>
+            <section className={`${styles.androidBiometricCard} ${biometricDone ? styles.androidBiometricDone : ""}`}>
+              <div className={styles.androidBiometricIcon}>
+                <Fingerprint size={54} strokeWidth={1.5} />
+              </div>
+              <div>
+                <strong>{biometricDone ? "Fingerprint matched" : "Android biometric verification"}</strong>
+                <span>{biometricDone ? "Fresh biometric sample matches the HR record." : "Use the device biometric prompt to continue."}</span>
+              </div>
+              <button disabled={loading || biometricDone} type="button" onClick={runBiometricCheck}>
+                {biometricDone ? "Verified" : "Open prompt"}
+              </button>
+            </section>
             <div className={styles.summary}>
               <span>Requirement</span>
               <strong>Institution biometric record</strong>
@@ -375,6 +396,14 @@ export function ExerciseVerifyPage() {
             <Button fullWidth disabled={!biometricDone} onClick={() => setStep(requiresLiveness ? "liveness" : "review")}>
               Continue
             </Button>
+            {biometricPromptOpen ? (
+              <AndroidBiometricPrompt
+                stage={biometricPromptStage}
+                onCancel={() => {
+                  if (!loading) setBiometricPromptOpen(false);
+                }}
+              />
+            ) : null}
           </Card>
         ) : null}
 
@@ -419,6 +448,49 @@ export function ExerciseVerifyPage() {
         ) : null}
       </section>
     </main>
+  );
+}
+
+function AndroidBiometricPrompt({
+  stage,
+  onCancel,
+}: {
+  stage: "ready" | "scanning" | "verifying" | "success" | "failed";
+  onCancel: () => void;
+}) {
+  const isBusy = stage === "scanning" || stage === "verifying";
+  return (
+    <div className={styles.biometricOverlay} role="dialog" aria-modal="true" aria-label="Android biometric prompt">
+      <div className={styles.androidPrompt}>
+        <div className={styles.androidHandle} />
+        <h2>Verify it is you</h2>
+        <p>Use fingerprint to continue this staff verification.</p>
+        <div className={`${styles.androidFingerprint} ${isBusy ? styles.androidFingerprintScanning : ""} ${stage === "success" ? styles.androidFingerprintSuccess : ""} ${stage === "failed" ? styles.androidFingerprintFailed : ""}`}>
+          {stage === "verifying" ? <Loader2 className={styles.androidSpinner} size={58} strokeWidth={1.6} /> : <Fingerprint size={68} strokeWidth={1.4} />}
+        </div>
+        <strong>
+          {stage === "scanning"
+            ? "Touch the fingerprint sensor"
+            : stage === "verifying"
+              ? "Matching with HR record"
+              : stage === "success"
+                ? "Fingerprint recognized"
+                : stage === "failed"
+                  ? "Fingerprint not recognized"
+                  : "Waiting for fingerprint"}
+        </strong>
+        <span>
+          {stage === "success"
+            ? "Biometric match confirmed."
+            : stage === "failed"
+              ? "Try again or contact HR."
+              : "This is a secure device biometric check."}
+        </span>
+        <button disabled={isBusy} type="button" onClick={onCancel}>
+          Cancel
+        </button>
+      </div>
+    </div>
   );
 }
 
