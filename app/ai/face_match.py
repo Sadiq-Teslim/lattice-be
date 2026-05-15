@@ -1,11 +1,9 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-import cv2
 import numpy as np
-import torch
 from PIL import Image
-from torchvision import models, transforms
 
 from app.core.config import settings
 
@@ -16,6 +14,15 @@ class FaceMatchUnavailable(RuntimeError):
 
 class FaceEmbeddingService:
     def __init__(self, threshold: float | None = None) -> None:
+        try:
+            import cv2
+            import torch
+            from torchvision import transforms
+        except ImportError as exc:
+            raise FaceMatchUnavailable(f"face-match dependencies are not installed: {exc}") from exc
+
+        self._cv2 = cv2
+        self._torch = torch
         self.threshold = threshold if threshold is not None else settings.face_match_threshold
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.face_cascade = cv2.CascadeClassifier(
@@ -36,9 +43,9 @@ class FaceEmbeddingService:
     def embed(self, image: Image.Image) -> dict:
         crop, metadata = self._extract_face_crop(image.convert("RGB"))
         tensor = self.transform(crop).unsqueeze(0).to(self.device)
-        with torch.no_grad():
+        with self._torch.no_grad():
             vector = self.model(tensor).squeeze(0)
-        vector = torch.nn.functional.normalize(vector, dim=0).cpu().numpy()
+        vector = self._torch.nn.functional.normalize(vector, dim=0).cpu().numpy()
         return {
             "embedding": [round(float(value), 8) for value in vector.tolist()],
             "model_name": "MobileNetV3-Small",
@@ -55,7 +62,9 @@ class FaceEmbeddingService:
             threshold=self.threshold,
         )
 
-    def _load_model(self) -> torch.nn.Module:
+    def _load_model(self) -> Any:
+        from torchvision import models
+
         try:
             model = models.mobilenet_v3_small(weights=models.MobileNet_V3_Small_Weights.DEFAULT)
         except Exception as exc:
@@ -67,7 +76,7 @@ class FaceEmbeddingService:
 
     def _extract_face_crop(self, image: Image.Image) -> tuple[Image.Image, dict]:
         array = np.array(image)
-        gray = cv2.cvtColor(array, cv2.COLOR_RGB2GRAY)
+        gray = self._cv2.cvtColor(array, self._cv2.COLOR_RGB2GRAY)
         faces = self.face_cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
@@ -132,4 +141,3 @@ def cosine_similarity(reference: np.ndarray, candidate: np.ndarray) -> float:
 @lru_cache(maxsize=1)
 def get_face_embedding_service() -> FaceEmbeddingService:
     return FaceEmbeddingService()
-

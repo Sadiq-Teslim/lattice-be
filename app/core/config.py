@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     squad_sms_endpoint: str = "/sms/send/instant"
     squad_sms_sender_id: str = "Lattice"
 
+    ai_worker_url: str | None = None
+    ai_worker_api_key: str | None = None
+
     viq_signing_secret: str = Field(default="change-this-before-demo", min_length=16)
     deepfake_model_path: str | None = None
     deepfake_threshold: float = 0.85

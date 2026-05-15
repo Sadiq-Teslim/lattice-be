@@ -1,11 +1,8 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
-import cv2
-import numpy as np
-import torch
 from PIL import Image, ImageOps
-from torchvision import models, transforms
 
 from app.core.config import settings
 
@@ -23,6 +20,15 @@ class DeepfakeDetector:
         if not self.model_path.exists():
             raise DeepfakeModelUnavailable(f"deepfake model not found: {self.model_path}")
 
+        try:
+            import cv2
+            import torch
+            from torchvision import transforms
+        except ImportError as exc:
+            raise DeepfakeModelUnavailable(f"deepfake dependencies are not installed: {exc}") from exc
+
+        self._cv2 = cv2
+        self._torch = torch
         self.threshold = threshold if threshold is not None else settings.deepfake_threshold
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.model = self._load_model()
@@ -76,15 +82,17 @@ class DeepfakeDetector:
 
     def _predict_probability(self, image: Image.Image) -> float:
         augmented_images = [image, ImageOps.mirror(image)]
-        tensors = torch.stack([self.transform(item) for item in augmented_images]).to(self.device)
-        with torch.no_grad():
+        tensors = self._torch.stack([self.transform(item) for item in augmented_images]).to(self.device)
+        with self._torch.no_grad():
             logits = self.model(tensors)
-            probabilities = torch.softmax(logits, dim=1)[:, 1]
+            probabilities = self._torch.softmax(logits, dim=1)[:, 1]
         return float(probabilities.mean().item())
 
     def _extract_face_crop(self, image: Image.Image) -> tuple[Image.Image, dict]:
+        import numpy as np
+
         array = np.array(image)
-        gray = cv2.cvtColor(array, cv2.COLOR_RGB2GRAY)
+        gray = self._cv2.cvtColor(array, self._cv2.COLOR_RGB2GRAY)
         faces = self.face_cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
@@ -122,7 +130,10 @@ class DeepfakeDetector:
             "test_time_augmentation": "horizontal_flip_mean",
         }
 
-    def _load_model(self) -> torch.nn.Module:
+    def _load_model(self) -> Any:
+        from torchvision import models
+
+        torch = self._torch
         model = models.efficientnet_b0(weights=None)
         model.classifier[1] = torch.nn.Linear(model.classifier[1].in_features, 2)
         try:

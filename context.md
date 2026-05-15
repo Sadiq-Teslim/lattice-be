@@ -570,6 +570,20 @@ The five-minute demo should prove these moments:
 - Make Squad integration structurally real and require valid sandbox credentials for live calls.
 - Keep every decision auditable through VIQ and AuditLog.
 
+## Deployment Split Update
+
+- The main FastAPI backend is now the lightweight payroll/payment API. It no longer installs Torch, torchvision, or OpenCV in default dependencies.
+- Heavy deepfake and face-match inference belongs in a separate AI worker deployed from `Dockerfile.ai`.
+- Main API env:
+  - `AI_WORKER_URL=https://<ai-worker>.onrender.com`
+  - `AI_WORKER_API_KEY=<shared-secret>`
+- AI worker env:
+  - `AI_WORKER_API_KEY=<same-shared-secret>`
+  - `DEEPFAKE_MODEL_PATH=models/deepfake/efficientnet_b0_ffpp_c23.pth`
+- If `AI_WORKER_URL` is set, main API proxies `/api/v1/ai/deepfake/*` and `/api/v1/ai/face-match/*` to the worker.
+- If the worker is down or not configured, payroll, VIQ, document checks, anomaly detection, liveness evidence, OTP, webhooks, and Squad payment gating still work. Deepfake/face-match routes return `503` instead of crashing startup.
+- Deployment instructions live in `docs/ai-worker-deployment.md`.
+
 ## Next Best Task
 
 Start implementation with:
