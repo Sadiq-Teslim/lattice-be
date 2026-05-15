@@ -124,6 +124,19 @@ export type PublicFaceVerificationResponse = {
   candidate_preprocessing: Record<string, unknown>;
 };
 
+export type BiometricVerifyResponse = {
+  status: "BIOMETRIC_MATCH" | "BIOMETRIC_MISMATCH";
+  similarity: number;
+  threshold: number;
+  modality: "face" | "fingerprint" | "iris" | "voice";
+  model_name: string;
+  model_version: string;
+  enrolled_quality: Record<string, unknown>;
+  captured_quality: Record<string, unknown>;
+  worker_id: string | null;
+  reference_source: string;
+};
+
 export type VerificationSession = {
   id: string;
   worker_id: string;

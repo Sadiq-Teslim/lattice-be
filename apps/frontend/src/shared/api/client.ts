@@ -2,6 +2,7 @@ import { env } from "@/shared/config/env";
 import type {
   AnomalyScanResponse,
   AdminSummary,
+  BiometricVerifyResponse,
   BillingAccount,
   BiasAuditResponse,
   CreditLedgerEntry,
@@ -38,11 +39,17 @@ type RequestOptions = RequestInit & {
 
 function apiBaseUrl() {
   if (typeof window !== "undefined") {
+    const isLocalHost = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
     const override = new URLSearchParams(window.location.search).get("api");
-    if (override === "local") {
+    if (override === "local" && isLocalHost) {
       return "http://127.0.0.1:8010/api/v1";
     }
     if (override && /^https?:\/\//.test(override)) {
+      const overrideUrl = new URL(override);
+      const overrideIsLocal = ["localhost", "127.0.0.1", "::1"].includes(overrideUrl.hostname);
+      if (overrideIsLocal && !isLocalHost) {
+        return env.apiUrl.replace(/\/$/, "");
+      }
       return override.replace(/\/$/, "");
     }
   }
@@ -82,6 +89,9 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") {
       throw new Error("The verification service is still waking up. Please retry in a moment.");
+    }
+    if (error instanceof TypeError && error.message.toLowerCase().includes("failed to fetch")) {
+      throw new Error("Could not reach the verification service. Please check your connection and retry.");
     }
     throw error;
   } finally {
@@ -375,6 +385,25 @@ export const latticeApi = {
   }) =>
     request<LivenessEvaluationResponse>("/ai/liveness/evaluate", {
       method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  verifyWorkerBiometric: (
+    workerId: string,
+    payload: {
+      captured_template: {
+        modality: "face" | "fingerprint" | "iris" | "voice";
+        vector: number[];
+        provider?: string;
+        captured_at?: string;
+        metadata?: Record<string, unknown>;
+      };
+      threshold?: number;
+    },
+  ) =>
+    request<BiometricVerifyResponse>(`/ai/biometrics/workers/${encodeURIComponent(workerId)}/verify`, {
+      method: "POST",
+      protected: true,
       body: JSON.stringify(payload),
     }),
 

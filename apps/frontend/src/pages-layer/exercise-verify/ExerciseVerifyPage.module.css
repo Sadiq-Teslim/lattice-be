@@ -281,6 +281,50 @@
   gap: var(--space-sm);
 }
 
+.livenessInstruction {
+  border: 1px solid rgba(15, 122, 61, 0.2);
+  border-radius: var(--radius-button);
+  background: #ecfdf3;
+  color: var(--color-brand) !important;
+  padding: 10px 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.biometricPad {
+  min-height: 172px;
+  display: grid;
+  place-items: center;
+  gap: var(--space-sm);
+  border: 1px solid rgba(15, 122, 61, 0.35);
+  border-radius: var(--radius-card);
+  background:
+    radial-gradient(circle at center, rgba(15, 122, 61, 0.16), transparent 34%),
+    linear-gradient(135deg, rgba(15, 122, 61, 0.08), rgba(255, 255, 255, 0.94));
+  color: var(--color-brand);
+  padding: var(--space-lg);
+  font-weight: 900;
+  cursor: pointer;
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 100ms ease;
+}
+
+.biometricPad:hover:not(:disabled) {
+  border-color: var(--color-brand);
+  box-shadow: 0 10px 28px rgba(15, 122, 61, 0.12);
+  transform: translateY(-1px);
+}
+
+.biometricPad:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.biometricPadDone {
+  border-color: var(--color-brand);
+  background: #ecfdf3;
+  box-shadow: inset 0 0 0 2px rgba(15, 122, 61, 0.12);
+}
+
 .summary {
   display: grid;
   grid-template-columns: 0.8fr 1.2fr;

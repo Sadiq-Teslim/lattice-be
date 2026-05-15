@@ -85,7 +85,6 @@
 }
 
 .status,
-.instruction,
 .metrics {
   position: absolute;
   z-index: 2;
@@ -104,16 +103,6 @@
   left: var(--space-sm);
   top: var(--space-sm);
   padding: 6px 12px;
-}
-
-.instruction {
-  left: 50%;
-  top: 54px;
-  max-width: calc(100% - 32px);
-  justify-content: center;
-  padding: 8px 12px;
-  text-align: center;
-  transform: translateX(-50%);
 }
 
 .metrics {

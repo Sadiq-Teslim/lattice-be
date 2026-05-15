@@ -1,6 +1,7 @@
 from dataclasses import asdict
 from datetime import datetime
 from decimal import Decimal
+from math import sqrt
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -168,6 +169,11 @@ def _ensure_ogun_demo_verification_cases(db: Session, workers: list[Worker]) -> 
     worker_by_code = {worker.worker_code: worker for worker in workers}
     changed = False
 
+    for worker in workers:
+        if not isinstance(worker.biometric_template, dict):
+            _assign_demo_biometric_template(worker)
+            changed = True
+
     teslim = worker_by_code.get("OG00001")
     if teslim is not None:
         _apply_pass_case(teslim)
@@ -211,6 +217,7 @@ def _apply_pass_case(worker: Worker) -> None:
             verification_case="pass",
         ),
     }
+    _assign_demo_biometric_template(worker)
 
 
 def _apply_fail_case(worker: Worker) -> None:
@@ -241,6 +248,51 @@ def _apply_fail_case(worker: Worker) -> None:
             appointment_date="2014-09-15",
             verification_case="fail",
         ),
+    }
+    _assign_demo_biometric_template(worker)
+
+
+def _assign_demo_biometric_template(worker: Worker) -> None:
+    vector = _demo_biometric_vector(
+        worker_code=worker.worker_code,
+        full_name=worker.full_name,
+        date_of_birth=str(worker.date_of_birth) if worker.date_of_birth else "",
+    )
+    worker.biometric_template = {
+        "modality": "fingerprint",
+        "vector": vector,
+        "provider": "lattice-demo-enrollment",
+        "captured_at": "2026-05-15T00:00:00Z",
+        "metadata": {
+            "source": "seeded_ogun_staff_file",
+            "worker_code": worker.worker_code,
+        },
+        "quality": _demo_biometric_quality(vector),
+    }
+
+
+def _demo_biometric_vector(*, worker_code: str, full_name: str, date_of_birth: str) -> list[float]:
+    seed = f"{worker_code.strip().upper()}|{full_name.strip().lower()}|{date_of_birth.strip()}"
+    state = 2166136261
+    for character in seed:
+        state ^= ord(character)
+        state = (state * 16777619) % (2**32)
+    values: list[float] = []
+    for index in range(16):
+        state ^= index + 0x9E3779B9
+        state = (state * 16777619) % (2**32)
+        values.append(round(((state % 2000) - 1000) / 1000, 6))
+    return values
+
+
+def _demo_biometric_quality(vector: list[float]) -> dict:
+    magnitude = sqrt(sum(value * value for value in vector))
+    zero_ratio = sum(1 for value in vector if abs(value) < 1e-9) / len(vector)
+    return {
+        "dimension": len(vector),
+        "magnitude": round(magnitude, 6),
+        "zero_ratio": round(zero_ratio, 6),
+        "usable": magnitude > 0.01 and zero_ratio < 0.95,
     }
 
 

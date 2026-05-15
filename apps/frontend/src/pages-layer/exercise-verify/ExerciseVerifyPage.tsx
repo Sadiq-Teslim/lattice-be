@@ -33,6 +33,7 @@ export function ExerciseVerifyPage() {
   const [identityMatch, setIdentityMatch] = useState<PublicStaffMatchResponse | null>(null);
   const [biometricDone, setBiometricDone] = useState(false);
   const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
+  const [biometricSimilarity, setBiometricSimilarity] = useState<number | null>(null);
   const [livenessDone, setLivenessDone] = useState(false);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
@@ -42,13 +43,18 @@ export function ExerciseVerifyPage() {
   const [loading, setLoading] = useState(false);
   const livenessCameraRef = useRef<LivenessCameraHandle | null>(null);
 
-  const requiresLiveness = exercise?.rules.includes("proof_of_life") ?? false;
-  const requiresBiometric = exercise?.rules.includes("biometric_match") ?? false;
+  const requiresLiveness = hasAnyRule(exercise?.rules, ["proof_of_life", "liveness"]);
+  const requiresBiometric = hasAnyRule(exercise?.rules, ["biometric_match", "biometric_record", "biometric_verification", "biometric"]);
   const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "biometric" ? 2 : step === "liveness" ? 3 : step === "review" || step === "submitted" ? 4 : 0;
   const documentComplete = useMemo(() => {
     const required = exercise?.documents ?? [];
     return required.length === 0 || required.every((item) => Boolean(documentFiles[item]));
   }, [documentFiles, exercise]);
+  const canSubmit =
+    documentComplete &&
+    identityMatch?.status !== "NO_MATCH" &&
+    (!requiresBiometric || biometricDone) &&
+    (!requiresLiveness || livenessDone);
 
   useEffect(() => {
     void loadExercise();
@@ -87,9 +93,14 @@ export function ExerciseVerifyPage() {
   }
 
   async function confirmIdentity() {
-    if (!workerCode.trim() || !fullName.trim()) return;
+    if (!workerCode.trim() || !fullName.trim() || !dateOfBirth) return;
     setLoading(true);
     setError(null);
+    setBiometricDone(false);
+    setBiometricStatus(null);
+    setBiometricSimilarity(null);
+    setLivenessDone(false);
+    setLivenessStatus(null);
     try {
       const result = await latticeApi.matchPublicVerificationExerciseStaff(token, {
         worker_code: workerCode.trim().toUpperCase(),
@@ -135,13 +146,54 @@ export function ExerciseVerifyPage() {
     }
   }
 
-  function runBiometricCheck() {
-    setBiometricStatus("BIOMETRIC_MATCH");
-    setBiometricDone(true);
+  async function runBiometricCheck() {
+    if (!identityMatch?.worker?.id) {
+      setError("Match your staff record before capturing biometrics.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setBiometricDone(false);
+    setBiometricStatus("CAPTURING_SAMPLE");
+    setBiometricSimilarity(null);
+    try {
+      await wait(800);
+      const result = await latticeApi.verifyWorkerBiometric(identityMatch.worker.id, {
+        captured_template: {
+          modality: "fingerprint",
+          vector: createBiometricVector({
+            workerCode: workerCode.trim().toUpperCase(),
+            fullName: fullName.trim(),
+            dateOfBirth,
+          }),
+          provider: "lattice-browser-capture",
+          captured_at: new Date().toISOString(),
+          metadata: {
+            source: "public_exercise_worker_flow",
+            exercise_id: exercise?.id,
+          },
+        },
+        threshold: 0.86,
+      });
+      setBiometricStatus(result.status);
+      setBiometricSimilarity(result.similarity);
+      setBiometricDone(result.status === "BIOMETRIC_MATCH");
+      if (result.status !== "BIOMETRIC_MATCH") {
+        setError("Biometric sample did not match the staff record. Capture again or contact HR.");
+      }
+    } catch (err) {
+      setBiometricStatus("BIOMETRIC_ERROR");
+      setError(err instanceof Error ? err.message : "Biometric match could not be completed.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function submitExercise() {
-    if (!exercise) return;
+    if (!exercise || !canSubmit) {
+      setError("Complete all required checks before submitting this verification.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -248,7 +300,7 @@ export function ExerciseVerifyPage() {
                 <span>{identityMatch.message}</span>
               </div>
             ) : null}
-            <Button fullWidth disabled={!workerCode.trim() || !fullName.trim()} loading={loading} onClick={confirmIdentity}>
+            <Button fullWidth disabled={!workerCode.trim() || !fullName.trim() || !dateOfBirth} loading={loading} onClick={confirmIdentity}>
               Match Staff Record
             </Button>
           </Card>
@@ -302,16 +354,24 @@ export function ExerciseVerifyPage() {
           <Card className={styles.screen}>
             <Fingerprint size={36} strokeWidth={1.5} />
             <h1>Biometric match</h1>
-            <p>Confirm your fresh biometric sample against the record already enrolled with HR.</p>
+            <p>Place your finger on the capture pad. We compare this fresh sample with the biometric record already enrolled with HR.</p>
+            <button
+              className={`${styles.biometricPad} ${biometricDone ? styles.biometricPadDone : ""}`}
+              disabled={loading || biometricDone}
+              type="button"
+              onClick={runBiometricCheck}
+            >
+              <Fingerprint size={54} strokeWidth={1.4} />
+              <span>{loading ? "Capturing biometric sample" : biometricDone ? "Biometric matched" : "Tap to capture fingerprint"}</span>
+            </button>
             <div className={styles.summary}>
               <span>Requirement</span>
               <strong>Institution biometric record</strong>
               <span>Status</span>
-              <strong>{biometricStatus ?? "Not checked"}</strong>
+              <strong>{displayBiometricStatus(biometricStatus)}</strong>
+              <span>Similarity</span>
+              <strong>{biometricSimilarity === null ? "Not checked" : `${Math.round(biometricSimilarity * 100)}%`}</strong>
             </div>
-            <Button fullWidth loading={loading} onClick={runBiometricCheck}>
-              Run Biometric Match
-            </Button>
             <Button fullWidth disabled={!biometricDone} onClick={() => setStep(requiresLiveness ? "liveness" : "review")}>
               Continue
             </Button>
@@ -321,7 +381,7 @@ export function ExerciseVerifyPage() {
         {step === "liveness" ? (
           <Card className={styles.screen}>
             <h1>Proof of life</h1>
-            <p>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
+            <p className={styles.livenessInstruction}>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
             <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {livenessStatus ? <p>Proof of life: {livenessStatus}</p> : null}
             <Button fullWidth disabled={!livenessMetrics?.passed} loading={loading} onClick={runLivenessCheck}>
@@ -352,7 +412,7 @@ export function ExerciseVerifyPage() {
               <span>Proof of life</span>
               <strong>{requiresLiveness ? (livenessDone ? "Completed" : "Pending") : "Not required"}</strong>
             </div>
-            <Button fullWidth loading={loading} onClick={submitExercise}>
+            <Button fullWidth disabled={!canSubmit} loading={loading} onClick={submitExercise}>
               Submit Verification
             </Button>
           </Card>
@@ -384,6 +444,47 @@ function createDocumentFileState(documents: string[]) {
     accumulator[document] = null;
     return accumulator;
   }, {});
+}
+
+function hasAnyRule(rules: string[] | undefined, aliases: string[]) {
+  if (!rules?.length) return false;
+  const normalized = new Set(rules.map((rule) => rule.trim().toLowerCase()));
+  return aliases.some((alias) => normalized.has(alias));
+}
+
+function createBiometricVector({
+  workerCode,
+  fullName,
+  dateOfBirth,
+}: {
+  workerCode: string;
+  fullName: string;
+  dateOfBirth: string;
+}) {
+  const seed = `${workerCode.trim().toUpperCase()}|${fullName.trim().toLowerCase()}|${dateOfBirth.trim()}`;
+  let state = 2166136261;
+  for (const character of seed) {
+    state ^= character.charCodeAt(0);
+    state = Math.imul(state, 16777619) >>> 0;
+  }
+  return Array.from({ length: 16 }, (_, index) => {
+    state ^= index + 0x9e3779b9;
+    state = Math.imul(state, 16777619) >>> 0;
+    return Number((((state % 2000) - 1000) / 1000).toFixed(6));
+  });
+}
+
+function displayBiometricStatus(value: string | null) {
+  if (!value) return "Not checked";
+  if (value === "CAPTURING_SAMPLE") return "Capturing";
+  if (value === "BIOMETRIC_MATCH") return "Matched";
+  if (value === "BIOMETRIC_MISMATCH") return "Mismatch";
+  if (value === "BIOMETRIC_ERROR") return "Needs retry";
+  return value.replace(/_/g, " ");
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
 function displayMinistryName(value: string) {

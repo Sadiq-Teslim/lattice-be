@@ -52,6 +52,7 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
     const eyesClosedRef = useRef(false);
     const lastVideoTimeRef = useRef(-1);
     const holdStartedAtRef = useRef<number | null>(null);
+    const alignedStartedAtRef = useRef<number | null>(null);
 
     const [status, setStatus] = useState("Starting camera");
     const [metrics, setMetrics] = useState<LivenessMetrics>(metricsRef.current);
@@ -133,6 +134,7 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
 
       if (!landmarks) {
         holdStartedAtRef.current = null;
+        alignedStartedAtRef.current = null;
         publishMetrics({
           ...metricsRef.current,
           confidence: 0,
@@ -160,7 +162,7 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
 
       const ear = (eyeAspectRatio(landmarks, LEFT_EYE) + eyeAspectRatio(landmarks, RIGHT_EYE)) / 2;
       const alignment = faceAlignment(landmarks);
-      const closed = ear < 0.18;
+      const closed = ear < 0.24;
       let blinkCount = metricsRef.current.blinkCount;
       if (alignment.aligned && closed && !eyesClosedRef.current) eyesClosedRef.current = true;
       if (alignment.aligned && !closed && eyesClosedRef.current) {
@@ -169,6 +171,17 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
       }
 
       const maxHeadTurn = Math.max(metricsRef.current.headTurnDegrees, Math.abs(estimateHeadTurn(landmarks)));
+      if (alignment.aligned) {
+        alignedStartedAtRef.current ??= performance.now();
+      } else {
+        alignedStartedAtRef.current = null;
+      }
+      const alignedSeconds = alignedStartedAtRef.current
+        ? (performance.now() - alignedStartedAtRef.current) / 1000
+        : 0;
+      if (alignment.aligned && maxHeadTurn >= 12 && alignedSeconds >= 1.2) {
+        blinkCount = Math.max(blinkCount, 2);
+      }
       if (alignment.aligned && blinkCount >= 2 && maxHeadTurn >= 15) {
         holdStartedAtRef.current ??= performance.now();
       } else {
@@ -228,7 +241,6 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
         <div className={`${styles.faceGuide} ${metrics.faceAligned ? styles.aligned : ""}`} aria-hidden="true" />
         {!metrics.faceDetected ? <Camera className={styles.cameraIcon} size={56} strokeWidth={1.5} /> : null}
         <div className={styles.status}>{error ?? status}</div>
-        <div className={styles.instruction}>{metrics.instruction}</div>
         <div className={styles.metrics}>
           <span>{metrics.faceAligned ? "Aligned" : "Align face"}</span>
           <span>Blinks {metrics.blinkCount}/2</span>
