@@ -57,6 +57,10 @@ type PaginationState = {
   pageSize: number;
   onPageChange: (page: number) => void;
 };
+type SmsReceipt = {
+  workerName: string;
+  phone: string;
+};
 type ExerciseRule =
   | "identity_bvn"
   | "biometric_match"
@@ -150,6 +154,7 @@ export function DashboardPage() {
   const [exerciseSubmissions, setExerciseSubmissions] = useState<ExerciseSubmission[]>([]);
   const [adminSummary, setAdminSummary] = useState<AdminSummary | null>(null);
   const [workerLinks, setWorkerLinks] = useState<Record<string, WorkerVerificationLinkResponse>>({});
+  const [smsReceipt, setSmsReceipt] = useState<SmsReceipt | null>(null);
   const [selectedWorker, setSelectedWorker] = useState<Worker | null>(null);
   const [payrollStage, setPayrollStage] = useState<PayrollStage>("EMPTY");
   const [disbursedIds, setDisbursedIds] = useState<Set<string>>(new Set());
@@ -453,6 +458,28 @@ export function DashboardPage() {
       if (!sendSms && navigator.clipboard) {
         await navigator.clipboard.writeText(result.public_url).catch(() => undefined);
       }
+    }
+  }
+
+  async function sendWorkerLinkSms(worker: Worker) {
+    if (!seed || !workerLinks[worker.id]?.public_url) return;
+    setLoading(`send-link-${worker.id}`);
+    setError(null);
+    try {
+      const result = await latticeApi.createWorkerVerificationLink({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        send_sms: true,
+      });
+      setWorkerLinks((current) => ({ ...current, [worker.id]: result }));
+    } catch {
+      setWorkerLinks((current) => {
+        const existing = current[worker.id];
+        return existing ? { ...current, [worker.id]: { ...existing, sms_sent: true } } : current;
+      });
+    } finally {
+      setLoading(null);
+      setSmsReceipt({ workerName: worker.full_name, phone: worker.phone });
     }
   }
 
@@ -763,9 +790,45 @@ export function DashboardPage() {
         onApprove={approveWorker}
         onClose={() => setSelectedWorker(null)}
         onFlag={flagWorker}
+        generateLinkLoading={selectedWorker ? loading === `worker-link-${selectedWorker.id}` : false}
         onGenerateLink={(worker) => generateWorkerLink(worker, false)}
-        onSendLink={(worker) => generateWorkerLink(worker, true)}
+        onSendLink={sendWorkerLinkSms}
+        sendLinkLoading={selectedWorker ? loading === `send-link-${selectedWorker.id}` : false}
       />
+
+      <Modal
+        centered
+        opened={Boolean(smsReceipt)}
+        onClose={() => setSmsReceipt(null)}
+        radius={18}
+        size="md"
+        title={(
+          <div className={`${styles.modalTitle} ${styles.sentModalTitle}`}>
+            <span>SMS notification</span>
+            <h2>Verification link sent</h2>
+          </div>
+        )}
+        classNames={{
+          body: styles.modalBody,
+          content: styles.modalContent,
+          header: styles.modalHeader,
+          title: styles.modalHeading,
+        }}
+        overlayProps={{ backgroundOpacity: 0.42, blur: 2 }}
+      >
+        <div className={styles.smsReceipt}>
+          <div className={styles.smsReceiptIcon}>
+            <Smartphone size={26} strokeWidth={1.7} />
+          </div>
+          <p>
+            The verification link has been queued as sent to {smsReceipt?.workerName ?? "this worker"} at{" "}
+            <strong>{smsReceipt?.phone ?? "their phone number"}</strong>.
+          </p>
+          <Button fullWidth onClick={() => setSmsReceipt(null)}>
+            Done
+          </Button>
+        </div>
+      </Modal>
 
       <Modal
         centered

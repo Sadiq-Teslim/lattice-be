@@ -26,6 +26,8 @@ type WorkerDetailDrawerProps = {
   onFlag?: (worker: Worker) => void;
   onGenerateLink?: (worker: Worker) => void;
   onSendLink?: (worker: Worker) => void;
+  generateLinkLoading?: boolean;
+  sendLinkLoading?: boolean;
 };
 
 const featureLabels: Record<string, string> = {
@@ -48,6 +50,8 @@ export function WorkerDetailDrawer({
   onFlag,
   onGenerateLink,
   onSendLink,
+  generateLinkLoading = false,
+  sendLinkLoading = false,
 }: WorkerDetailDrawerProps) {
   if (!worker) return null;
   const flags = viq?.flags ?? (anomaly?.flagged ? ["ANOMALY_FLAGGED"] : []);
@@ -74,6 +78,7 @@ export function WorkerDetailDrawer({
               ? "Held for HR review"
               : "Awaiting verification";
   const verdictVariant = verdict === "PASS" ? "success" : verdict === "FAIL" ? "danger" : "warning";
+  const canSendSms = Boolean(verificationLink?.public_url);
 
   return (
     <>
@@ -183,11 +188,18 @@ export function WorkerDetailDrawer({
             <p>Create a private verification link for this staff member to complete OTP, documents, and liveness checks.</p>
           )}
           <div className={styles.inlineActions}>
-            <Button onClick={() => onGenerateLink?.(worker)} variant="secondary">
+            <Button loading={generateLinkLoading} onClick={() => onGenerateLink?.(worker)} variant="secondary">
               <Copy size={17} strokeWidth={1.7} />
               Generate Link
             </Button>
-            <Button onClick={() => onSendLink?.(worker)}>
+            <Button
+              disabled={!canSendSms}
+              loading={sendLinkLoading}
+              onClick={() => {
+                if (canSendSms) onSendLink?.(worker);
+              }}
+              title={canSendSms ? "Send the generated link by SMS" : "Generate a link before sending SMS"}
+            >
               <Send size={17} strokeWidth={1.7} />
               Send SMS
             </Button>

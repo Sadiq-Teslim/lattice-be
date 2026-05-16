@@ -76,6 +76,15 @@
   transform: translateX(-50%);
 }
 
+.faceGuide.noFace {
+  border-color: var(--color-danger);
+  box-shadow:
+    0 0 0 999px rgba(127, 29, 29, 0.22),
+    inset 0 0 24px rgba(185, 28, 28, 0.1),
+    0 0 0 4px rgba(185, 28, 28, 0.2);
+}
+
+.faceGuide.detected,
 .faceGuide.aligned {
   border-color: var(--color-brand);
   box-shadow:
@@ -103,6 +112,16 @@
   left: var(--space-sm);
   top: var(--space-sm);
   padding: 6px 12px;
+}
+
+.detectedStatus {
+  border: 1px solid rgba(15, 122, 61, 0.26);
+  color: var(--color-brand);
+}
+
+.noFaceStatus {
+  border: 1px solid rgba(185, 28, 28, 0.26);
+  color: var(--color-danger);
 }
 
 .metrics {

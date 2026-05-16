@@ -291,6 +291,26 @@
   text-align: center;
 }
 
+.deepfakeAlert,
+.deepfakeClean {
+  border-radius: var(--radius-button);
+  padding: 10px 12px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.deepfakeAlert {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger-bg);
+  color: var(--color-danger) !important;
+}
+
+.deepfakeClean {
+  border: 1px solid rgba(15, 122, 61, 0.32);
+  background: #ecfdf3;
+  color: var(--color-brand) !important;
+}
+
 .androidBiometricCard {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;

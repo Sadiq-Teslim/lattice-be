@@ -18,8 +18,12 @@ import { Button, Card, StepProgress } from "@/shared/ui";
 import styles from "./ExerciseVerifyPage.module.css";
 
 type Step = "loading" | "identity" | "documents" | "biometric" | "liveness" | "review" | "submitted";
-
-const flowSteps = ["Identity", "Documents", "Biometric", "Liveness", "Submit"];
+type DeepfakeCheck = {
+  status: "CLEAN" | "DEEPFAKE_DETECTED" | string;
+  synthetic_probability: number;
+  model_name: string;
+  model_version: string;
+};
 
 export function ExerciseVerifyPage() {
   const params = useParams<{ token: string }>();
@@ -40,15 +44,22 @@ export function ExerciseVerifyPage() {
   const [livenessDone, setLivenessDone] = useState(false);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [livenessStatus, setLivenessStatus] = useState<string | null>(null);
+  const [deepfakeCheck, setDeepfakeCheck] = useState<DeepfakeCheck | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>({});
   const [submission, setSubmission] = useState<ExerciseSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const livenessCameraRef = useRef<LivenessCameraHandle | null>(null);
+  const livenessFrameRef = useRef<File | null>(null);
 
   const requiresLiveness = hasAnyRule(exercise?.rules, ["proof_of_life", "liveness"]);
   const requiresBiometric = hasAnyRule(exercise?.rules, ["biometric_match", "biometric_record", "biometric_verification", "biometric"]);
-  const currentStep = step === "identity" ? 0 : step === "documents" ? 1 : step === "biometric" ? 2 : step === "liveness" ? 3 : step === "review" || step === "submitted" ? 4 : 0;
+  const flowSteps = requiresLiveness
+    ? ["Liveness", "Identity", "Documents", "Biometric", "Submit"]
+    : ["Identity", "Documents", "Biometric", "Submit"];
+  const currentStep = requiresLiveness
+    ? step === "liveness" ? 0 : step === "identity" ? 1 : step === "documents" ? 2 : step === "biometric" ? 3 : step === "review" || step === "submitted" ? 4 : 0
+    : step === "identity" ? 0 : step === "documents" ? 1 : step === "biometric" ? 2 : step === "review" || step === "submitted" ? 3 : 0;
   const documentComplete = useMemo(() => {
     const required = exercise?.documents ?? [];
     return required.length === 0 || required.every((item) => Boolean(documentFiles[item]));
@@ -75,14 +86,14 @@ export function ExerciseVerifyPage() {
     if (embeddedExercise) {
       setExercise(embeddedExercise);
       setDocumentFiles(createDocumentFileState(embeddedExercise.documents));
-      setStep("identity");
+      setStep(hasAnyRule(embeddedExercise.rules, ["proof_of_life", "liveness"]) ? "liveness" : "identity");
     }
 
     try {
       const result = await latticeApi.getPublicVerificationExercise(token);
       setExercise(result);
       setDocumentFiles(createDocumentFileState(result.documents));
-      setStep("identity");
+      setStep(hasAnyRule(result.rules, ["proof_of_life", "liveness"]) ? "liveness" : "identity");
     } catch (err) {
       if (!embeddedExercise) {
         setError(err instanceof Error ? err.message : "Could not open this verification link.");
@@ -104,8 +115,6 @@ export function ExerciseVerifyPage() {
     setBiometricSimilarity(null);
     setBiometricPromptOpen(false);
     setBiometricPromptStage("ready");
-    setLivenessDone(false);
-    setLivenessStatus(null);
     try {
       const result = await latticeApi.matchPublicVerificationExerciseStaff(token, {
         worker_code: workerCode.trim().toUpperCase(),
@@ -130,19 +139,33 @@ export function ExerciseVerifyPage() {
     if (!livenessMetrics?.passed) return;
     setLoading(true);
     setError(null);
+    setDeepfakeCheck(null);
     try {
-      const result = await latticeApi.evaluateLiveness({
+      livenessFrameRef.current = await livenessCameraRef.current?.captureFrame() ?? null;
+      const payload = {
         challenge: "face_center_blink_turn_hold",
         blink_count: livenessMetrics.blinkCount,
         head_turn_degrees: livenessMetrics.headTurnDegrees,
         confidence: livenessMetrics.confidence,
         attempts: 1,
         captured_at: new Date().toISOString(),
-      });
+      };
+      const [result, deepfakeResult] = await Promise.all([
+        latticeApi.evaluateLiveness(payload),
+        livenessFrameRef.current
+          ? latticeApi.classifyDeepfakeFrame(livenessFrameRef.current).catch(() => null)
+          : Promise.resolve(null),
+      ]);
       setLivenessStatus(result.status);
-      setLivenessDone(result.status === "PASSED");
+      setDeepfakeCheck(deepfakeResult);
+      setLivenessDone(result.status === "PASSED" && deepfakeResult?.status !== "DEEPFAKE_DETECTED");
       if (result.status !== "PASSED") {
         setError("Proof of life failed. Complete the face alignment, blink, head-turn, and hold challenge.");
+        return;
+      }
+      if (deepfakeResult?.status === "DEEPFAKE_DETECTED") {
+        setLivenessStatus("DEEPFAKE_DETECTED");
+        setError("Deepfake detected. This verification cannot continue and has been marked for HR review.");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Proof of life could not be checked.");
@@ -332,7 +355,7 @@ export function ExerciseVerifyPage() {
             <Button
               fullWidth
               disabled={!documentComplete}
-              onClick={() => setStep(requiresBiometric ? "biometric" : requiresLiveness ? "liveness" : "review")}
+              onClick={() => setStep(requiresBiometric ? "biometric" : "review")}
             >
               Continue
             </Button>
@@ -384,10 +407,17 @@ export function ExerciseVerifyPage() {
             <p className={styles.livenessInstruction}>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
             <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {livenessStatus ? <p>Proof of life: {livenessStatus}</p> : null}
+            {deepfakeCheck ? (
+              <p className={deepfakeCheck.status === "DEEPFAKE_DETECTED" ? styles.deepfakeAlert : styles.deepfakeClean}>
+                {deepfakeCheck.status === "DEEPFAKE_DETECTED"
+                  ? `Deepfake detected (${Math.round(deepfakeCheck.synthetic_probability * 100)}% synthetic probability).`
+                  : "Media authenticity: clean"}
+              </p>
+            ) : null}
             <Button fullWidth disabled={!livenessMetrics?.passed} loading={loading} onClick={runLivenessCheck}>
               Submit Proof of Life
             </Button>
-            <Button fullWidth disabled={!livenessDone} onClick={() => setStep("review")}>
+            <Button fullWidth disabled={!livenessDone} onClick={() => setStep("identity")}>
               Continue
             </Button>
           </Card>

@@ -234,13 +234,29 @@ export const LivenessCamera = forwardRef<LivenessCameraHandle, LivenessCameraPro
       return blob ? new File([blob], "liveness-frame.jpg", { type: "image/jpeg" }) : null;
     }
 
+    const guideStateClass = metrics.faceDetected
+      ? styles.detected
+      : status === "No face detected" || error
+        ? styles.noFace
+        : "";
+    const statusStateClass = metrics.faceDetected
+      ? styles.detectedStatus
+      : status === "No face detected" || error
+        ? styles.noFaceStatus
+        : "";
+
     return (
       <div className={styles.wrap}>
         <video ref={videoRef} muted playsInline aria-label="Live camera preview" />
         <canvas ref={canvasRef} aria-hidden="true" />
-        <div className={`${styles.faceGuide} ${metrics.faceAligned ? styles.aligned : ""}`} aria-hidden="true" />
+        <div
+          className={`${styles.faceGuide} ${guideStateClass} ${metrics.faceAligned ? styles.aligned : ""}`}
+          aria-hidden="true"
+        />
         {!metrics.faceDetected ? <Camera className={styles.cameraIcon} size={56} strokeWidth={1.5} /> : null}
-        <div className={styles.status}>{error ?? status}</div>
+        <div className={`${styles.status} ${statusStateClass}`}>
+          {error ?? status}
+        </div>
         <div className={styles.metrics}>
           <span>{metrics.faceAligned ? "Aligned" : "Align face"}</span>
           <span>Blinks {metrics.blinkCount}/2</span>

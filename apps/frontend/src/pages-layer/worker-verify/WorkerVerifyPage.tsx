@@ -18,6 +18,12 @@ import { Button, Card, FlagPill, StepProgress, TrustScoreGauge } from "@/shared/
 import styles from "./WorkerVerifyPage.module.css";
 
 type FlowStep = "loading" | "welcome" | "otp" | "biometric" | "liveness" | "documents" | "processing" | "result";
+type DeepfakeCheck = {
+  status: "CLEAN" | "DEEPFAKE_DETECTED" | string;
+  synthetic_probability: number;
+  model_name: string;
+  model_version: string;
+};
 
 const steps = ["OTP", "Biometric", "Liveness", "Documents", "Done"];
 const requiredWorkerDocuments = [
@@ -41,6 +47,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
   const [biometricStatus, setBiometricStatus] = useState<string | null>(null);
   const [livenessMetrics, setLivenessMetrics] = useState<LivenessMetrics | null>(null);
   const [liveness, setLiveness] = useState<LivenessEvaluationResponse | null>(null);
+  const [deepfakeCheck, setDeepfakeCheck] = useState<DeepfakeCheck | null>(null);
   const [documents, setDocuments] = useState<DocumentConsistencyResponse | PublicDocumentUploadResponse | null>(null);
   const [documentFiles, setDocumentFiles] = useState<Record<string, File | null>>(
     createDocumentFileState(requiredWorkerDocuments),
@@ -182,6 +189,7 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
     if (!activeToken || !livenessMetrics?.passed) return;
     setBusy(true);
     setError(null);
+    setDeepfakeCheck(null);
     try {
       livenessFrameRef.current = await livenessCameraRef.current?.captureFrame() ?? null;
       const payload = {
@@ -192,10 +200,36 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
         attempts: 1,
         captured_at: new Date().toISOString(),
       };
-      const evaluated = await latticeApi.evaluateLiveness(payload);
+      const [evaluated, deepfakeResult] = await Promise.all([
+        latticeApi.evaluateLiveness(payload),
+        livenessFrameRef.current
+          ? latticeApi.classifyDeepfakeFrame(livenessFrameRef.current).catch(() => null)
+          : Promise.resolve(null),
+      ]);
       setLiveness(evaluated);
+      setDeepfakeCheck(deepfakeResult);
       if (evaluated.status !== "PASSED") {
         setError("Proof of life failed. Complete the face alignment, blink, head-turn, and hold challenge.");
+        return;
+      }
+      if (deepfakeResult?.status === "DEEPFAKE_DETECTED") {
+        await latticeApi.submitPublicVerificationEvidence(activeToken, {
+          liveness: {
+            status: "PASSED",
+            confidence: evaluated.confidence,
+            attempts: evaluated.attempts,
+            challenge: evaluated.challenge,
+            captured_at: payload.captured_at,
+          },
+          deepfake: {
+            status: "DEEPFAKE_DETECTED",
+            synthetic_probability: deepfakeResult.synthetic_probability,
+            model_name: deepfakeResult.model_name,
+            model_version: deepfakeResult.model_version,
+            captured_at: payload.captured_at,
+          },
+        }).catch(() => undefined);
+        setError("Deepfake detected. This verification cannot continue and has been marked for HR review.");
         return;
       }
       setStep("documents");
@@ -224,9 +258,9 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
         latticeApi.verifyPublicVerificationIdentity(activeToken).catch(() => null),
       ]);
       const frame = livenessFrameRef.current;
-      const deepfakeResult = frame
+      const deepfakeResult = deepfakeCheck ?? (frame
         ? await latticeApi.classifyDeepfakeFrame(frame).catch(() => null)
-        : null;
+        : null);
       const faceResult = frame
         ? await latticeApi.verifyPublicVerificationFace(activeToken, frame).catch(() => null)
         : null;
@@ -446,6 +480,13 @@ export function WorkerVerifyPage({ sessionToken }: Props) {
             <p>{livenessMetrics?.instruction ?? "Place your face inside the guide to begin."}</p>
             <LivenessCamera ref={livenessCameraRef} onMetricsChange={setLivenessMetrics} />
             {liveness ? <p className={styles.meta}>Proof of life: {liveness.status}</p> : null}
+            {deepfakeCheck ? (
+              <p className={deepfakeCheck.status === "DEEPFAKE_DETECTED" ? styles.deepfakeAlert : styles.deepfakeClean}>
+                {deepfakeCheck.status === "DEEPFAKE_DETECTED"
+                  ? `Deepfake detected (${Math.round(deepfakeCheck.synthetic_probability * 100)}% synthetic probability).`
+                  : "Media authenticity: clean"}
+              </p>
+            ) : null}
             <Button fullWidth disabled={!livenessMetrics?.passed} loading={busy} onClick={runLivenessCheck}>
               Submit Face Check
             </Button>
