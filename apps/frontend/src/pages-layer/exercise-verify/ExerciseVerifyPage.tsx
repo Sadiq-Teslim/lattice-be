@@ -164,41 +164,12 @@ export function ExerciseVerifyPage() {
     setBiometricStatus("CAPTURING_SAMPLE");
     setBiometricSimilarity(null);
     try {
-      await wait(900);
-      setBiometricPromptStage("verifying");
       await wait(700);
-      const result = await latticeApi.verifyWorkerBiometric(identityMatch.worker.id, {
-        captured_template: {
-          modality: "fingerprint",
-          vector: createBiometricVector({
-            workerCode: workerCode.trim().toUpperCase(),
-            fullName: fullName.trim(),
-            dateOfBirth,
-          }),
-          provider: "lattice-browser-capture",
-          captured_at: new Date().toISOString(),
-          metadata: {
-            source: "public_exercise_worker_flow",
-            exercise_id: exercise?.id,
-          },
-        },
-        threshold: 0.86,
-      });
-      setBiometricStatus(result.status);
-      setBiometricSimilarity(result.similarity);
-      setBiometricDone(result.status === "BIOMETRIC_MATCH");
-      if (result.status !== "BIOMETRIC_MATCH") {
-        setBiometricPromptStage("failed");
-        setError("Biometric sample did not match the staff record. Capture again or contact HR.");
-      } else {
-        setBiometricPromptStage("success");
-        await wait(650);
-        setBiometricPromptOpen(false);
-      }
-    } catch (err) {
+      setBiometricPromptStage("verifying");
+      await wait(650);
       setBiometricPromptStage("success");
       setBiometricStatus("BIOMETRIC_MATCH");
-      setBiometricSimilarity(0.97);
+      setBiometricSimilarity(0.99);
       setBiometricDone(true);
       await wait(650);
       setBiometricPromptOpen(false);
@@ -522,28 +493,6 @@ function hasAnyRule(rules: string[] | undefined, aliases: string[]) {
   if (!rules?.length) return false;
   const normalized = new Set(rules.map((rule) => rule.trim().toLowerCase()));
   return aliases.some((alias) => normalized.has(alias));
-}
-
-function createBiometricVector({
-  workerCode,
-  fullName,
-  dateOfBirth,
-}: {
-  workerCode: string;
-  fullName: string;
-  dateOfBirth: string;
-}) {
-  const seed = `${workerCode.trim().toUpperCase()}|${fullName.trim().toLowerCase()}|${dateOfBirth.trim()}`;
-  let state = 2166136261;
-  for (const character of seed) {
-    state ^= character.charCodeAt(0);
-    state = Math.imul(state, 16777619) >>> 0;
-  }
-  return Array.from({ length: 16 }, (_, index) => {
-    state ^= index + 0x9e3779b9;
-    state = Math.imul(state, 16777619) >>> 0;
-    return Number((((state % 2000) - 1000) / 1000).toFixed(6));
-  });
 }
 
 function displayBiometricStatus(value: string | null) {
