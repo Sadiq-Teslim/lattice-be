@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.models import BillingAccount, CreditLedgerEntry, CreditPurchase
 from app.schemas.billing import CreditPurchaseCreateRequest
-from app.services.squad import SquadService
+from app.services.squad import SquadAPIError, SquadConfigurationError, SquadService
 from app.services.webhooks import extract_transaction_reference, webhook_is_successful
 
 
@@ -61,18 +61,41 @@ class BillingService:
         self.db.add(purchase)
         self.db.flush()
 
-        squad_response = SquadService().initiate_payment(
-            email=payload.email,
-            amount_naira=amount_naira,
-            customer_name=payload.customer_name,
-            transaction_ref=transaction_reference,
-            callback_url=f"{settings.public_lattice_url.rstrip('/')}/get-started?billing_ref={transaction_reference}",
-            metadata={
-                "product": "lattice_credits",
-                "account_id": account.id,
-                "credits": payload.credits,
-            },
+        callback_url = (
+            f"{settings.public_lattice_url.rstrip('/')}/get-started"
+            f"?billing_ref={transaction_reference}"
         )
+        try:
+            squad_response = SquadService().initiate_payment(
+                email=payload.email,
+                amount_naira=amount_naira,
+                customer_name=payload.customer_name,
+                transaction_ref=transaction_reference,
+                callback_url=callback_url,
+                metadata={
+                    "product": "lattice_credits",
+                    "account_id": account.id,
+                    "credits": payload.credits,
+                },
+            )
+        except (SquadAPIError, SquadConfigurationError) as exc:
+            squad_response = {
+                "success": False,
+                "message": str(exc),
+                "provider": "SQUAD",
+                "fallback": "checkout_unavailable",
+                "callback_url": callback_url,
+                "response": getattr(exc, "response", None),
+            }
+            purchase.status = "SQUAD_CHECKOUT_UNAVAILABLE"
+            purchase.squad_response = squad_response
+            purchase.checkout_url = (
+                f"{settings.public_lattice_url.rstrip('/')}/get-started"
+                f"?billing_ref={transaction_reference}&checkout=unavailable"
+            )
+            self.db.commit()
+            self.db.refresh(purchase)
+            return purchase
         purchase.squad_response = squad_response
         purchase.checkout_url = _checkout_url_from_squad(squad_response)
         self.db.commit()
