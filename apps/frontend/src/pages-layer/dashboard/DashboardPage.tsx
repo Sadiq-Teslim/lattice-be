@@ -359,6 +359,7 @@ export function DashboardPage() {
     if (!seed) return;
     const result = await runAction(`verify-${worker.id}`, async () => {
       if (isDelayedDemoVerification(worker)) {
+        hideVerificationResult(worker.id);
         await createAndSendDemoVerificationLink(worker);
         await wait(10_000);
       }
@@ -371,6 +372,34 @@ export function DashboardPage() {
       setSelectedWorker(worker);
       void hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
     }
+  }
+
+  function hideVerificationResult(workerId: string) {
+    setViqs((current) => {
+      if (!current[workerId]) return current;
+      const next = { ...current };
+      delete next[workerId];
+      return next;
+    });
+    setDocumentResults((current) => {
+      if (!current[workerId]) return current;
+      const next = { ...current };
+      delete next[workerId];
+      return next;
+    });
+    setStaffActions((current) => current.filter((action) => action.worker_id !== workerId));
+    setDisbursedIds((current) => {
+      if (!current.has(workerId)) return current;
+      const next = new Set(current);
+      next.delete(workerId);
+      return next;
+    });
+    setInvestigationIds((current) => {
+      if (!current.has(workerId)) return current;
+      const next = new Set(current);
+      next.delete(workerId);
+      return next;
+    });
   }
 
   async function verifyWorkerNow(worker: Worker) {
