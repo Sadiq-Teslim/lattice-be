@@ -27,7 +27,7 @@ def test_ogun_seed_has_pass_and_fail_demo_records() -> None:
         teslim_bvn="22811452171",
         teslim_bank_code="000014",
         teslim_account_number="1914399138",
-        teslim_phone="08030000001",
+        teslim_phone="07063569494",
         teslim_dob="1998-01-01",
     )
 
@@ -39,6 +39,7 @@ def test_ogun_seed_has_pass_and_fail_demo_records() -> None:
 
     assert teslim["worker_code"] == "OG00001"
     assert teslim["full_name"] == "Teslim Adetola Sadiq"
+    assert teslim["phone"] == "07063569494"
     assert teslim["bank_code"] == "000014"
     assert teslim["bank_account_number"] == "1914399138"
     assert _score_for(teslim, document_status="DOCUMENTS_CLEAN").verdict == "PASS"

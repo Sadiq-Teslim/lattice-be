@@ -11,6 +11,7 @@ type WorkerTableProps = {
   disbursedIds?: Set<string>;
   investigationIds?: Set<string>;
   selectedId?: string;
+  verifyingWorkerId?: string;
   onSelect: (worker: Worker) => void;
   onVerify: (worker: Worker) => void;
 };
@@ -23,6 +24,7 @@ export function WorkerTable({
   disbursedIds = new Set(),
   investigationIds = new Set(),
   selectedId,
+  verifyingWorkerId,
   onSelect,
   onVerify,
 }: WorkerTableProps) {
@@ -113,6 +115,7 @@ export function WorkerTable({
                 </td>
                 <td data-label="Actions">
                   <Button
+                    loading={verifyingWorkerId === worker.id}
                     size="small"
                     variant="secondary"
                     onClick={(event) => {

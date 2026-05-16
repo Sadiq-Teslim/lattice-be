@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     demo_teslim_bvn: str | None = None
     demo_teslim_bank_code: str = "000014"
     demo_teslim_account_number: str | None = None
-    demo_teslim_phone: str = "08000000000"
+    demo_teslim_phone: str = "07063569494"
     demo_teslim_email: str = "teslim.sadiq@example.com"
     demo_teslim_dob: str | None = None
 

@@ -710,6 +710,7 @@ export function DashboardPage() {
             heldPayroll={heldPayroll}
             netEligible={netEligible}
             payrollStage={payrollStage}
+            loading={loading}
             pagination={pagination}
             onSelect={setSelectedWorker}
             onVerify={verifyWorker}
@@ -1037,7 +1038,7 @@ function StaffRecordsView(props: {
           <h2>Staff records and nominal roll</h2>
           <p>Each staff file contains salary, posting, bank, employment, documents, and verification status.</p>
         </div>
-        <Button disabled={!props.workers.length} loading={props.loading?.startsWith("verify")} onClick={props.onBulkVerify}>
+        <Button disabled={!props.workers.length} onClick={props.onBulkVerify}>
           <ClipboardCheck size={18} strokeWidth={1.5} />
           Verify Visible Staff
         </Button>
@@ -1049,6 +1050,7 @@ function StaffRecordsView(props: {
         disbursedIds={props.disbursedIds}
         investigationIds={props.investigationIds}
         selectedId={props.selectedId}
+        verifyingWorkerId={workerIdFromLoading(props.loading)}
         viqs={props.viqs}
         workers={props.workers}
         onSelect={props.onSelect}
@@ -1071,6 +1073,7 @@ function PayrollView(props: {
   heldPayroll: number;
   netEligible: number;
   payrollStage: PayrollStage;
+  loading: string | null;
   pagination: PaginationState;
   onSelect: (worker: Worker) => void;
   onVerify: (worker: Worker) => void;
@@ -1104,6 +1107,7 @@ function PayrollView(props: {
         disbursedIds={props.disbursedIds}
         investigationIds={props.investigationIds}
         selectedId={props.selectedId}
+        verifyingWorkerId={workerIdFromLoading(props.loading)}
         viqs={props.viqs}
         workers={props.workers}
         onSelect={props.onSelect}
@@ -1873,6 +1877,10 @@ function formatMoney(value: number) {
 
 function humanizeStatus(value: string) {
   return value.replaceAll("_", " ").toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function workerIdFromLoading(value: string | null) {
+  return value?.startsWith("verify-") ? value.slice("verify-".length) : undefined;
 }
 
 function documentEvidence(documents: DocumentConsistencyResponse) {
