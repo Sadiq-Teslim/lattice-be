@@ -5,7 +5,7 @@ from app.ai.synthetic_data import (
     generate_synthetic_payroll,
     inject_verified_ogun_records,
 )
-from app.api.routes.demo import _reset_click_to_verify_demo_results
+from app.api.routes.demo import _apply_pass_case, _reset_click_to_verify_demo_results
 from app.core.scoring import VerificationSignals, compute_trust_score
 from app.db.models import PayCycle, StaffAction, VerificationSession, VIQ, Worker
 
@@ -100,6 +100,16 @@ def test_click_to_verify_demo_results_are_reset_on_bootstrap(db_session) -> None
     assert db_session.query(VIQ).filter(VIQ.worker_id == other_worker.id).count() == 1
     assert db_session.query(StaffAction).filter(StaffAction.worker_id == teslim.id).count() == 0
     assert db_session.query(StaffAction).filter(StaffAction.worker_id == other_worker.id).count() == 1
+
+
+def test_demo_teslim_phone_is_fixed_for_bootstrap_case() -> None:
+    worker = _worker("OG00001", "Old Name", "pass", "Ogun State Ministry of Education Demo TEST")
+    worker.phone = "08000000000"
+
+    _apply_pass_case(worker)
+
+    assert worker.full_name == "Teslim Adetola Sadiq"
+    assert worker.phone == "07063569494"
 
 
 def _score_for(row, *, document_status: str):

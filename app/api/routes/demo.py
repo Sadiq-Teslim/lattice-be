@@ -29,6 +29,7 @@ from app.schemas.demo import (
 
 router = APIRouter(prefix="/demo", tags=["demo"])
 db_session = Depends(get_db)
+DEMO_TESLIM_PHONE = "07063569494"
 
 
 @router.post("/seed", response_model=DemoSeedResponse, status_code=status.HTTP_201_CREATED)
@@ -218,7 +219,7 @@ def _reset_click_to_verify_demo_results(
 def _apply_pass_case(worker: Worker) -> None:
     worker.full_name = "Teslim Adetola Sadiq"
     worker.bvn = settings.demo_teslim_bvn or worker.bvn
-    worker.phone = settings.demo_teslim_phone or worker.phone
+    worker.phone = DEMO_TESLIM_PHONE
     worker.email = settings.demo_teslim_email or worker.email
     worker.date_of_birth = settings.demo_teslim_dob or worker.date_of_birth
     worker.gender = worker.gender or "1"
@@ -347,7 +348,7 @@ def _create_demo_batch(payload: DemoSeedRequest, db: Session) -> DemoSeedRespons
         teslim_bvn=settings.demo_teslim_bvn,
         teslim_bank_code=settings.demo_teslim_bank_code,
         teslim_account_number=settings.demo_teslim_account_number,
-        teslim_phone=settings.demo_teslim_phone,
+        teslim_phone=DEMO_TESLIM_PHONE,
         teslim_email=settings.demo_teslim_email,
         teslim_dob=settings.demo_teslim_dob,
     )
