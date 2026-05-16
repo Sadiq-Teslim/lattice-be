@@ -97,6 +97,7 @@ def bootstrap_ogun_demo(db: Session = db_session) -> DemoBootstrapResponse:
 
     _normalize_ogun_worker_codes(db, workers)
     _ensure_ogun_demo_verification_cases(db, workers)
+    _reset_click_to_verify_demo_results(db, pay_cycle=pay_cycle, workers=workers)
     viqs = (
         db.query(VIQ)
         .filter(VIQ.pay_cycle_id == pay_cycle.id)
@@ -186,6 +187,32 @@ def _ensure_ogun_demo_verification_cases(db: Session, workers: list[Worker]) -> 
 
     if changed:
         db.commit()
+
+
+def _reset_click_to_verify_demo_results(
+    db: Session,
+    *,
+    pay_cycle: PayCycle,
+    workers: list[Worker],
+) -> None:
+    demo_worker_ids = [
+        worker.id
+        for worker in workers
+        if worker.worker_code in {"OG00001", "OG00002"}
+        and (worker.risk_metadata or {}).get("demo_verification_case") in {"pass", "fail"}
+    ]
+    if not demo_worker_ids:
+        return
+
+    db.query(StaffAction).filter(
+        StaffAction.pay_cycle_id == pay_cycle.id,
+        StaffAction.worker_id.in_(demo_worker_ids),
+    ).delete(synchronize_session=False)
+    db.query(VIQ).filter(
+        VIQ.pay_cycle_id == pay_cycle.id,
+        VIQ.worker_id.in_(demo_worker_ids),
+    ).delete(synchronize_session=False)
+    db.commit()
 
 
 def _apply_pass_case(worker: Worker) -> None:
