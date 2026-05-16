@@ -358,19 +358,11 @@ export function DashboardPage() {
   async function verifyWorker(worker: Worker) {
     if (!seed) return;
     const result = await runAction(`verify-${worker.id}`, async () => {
-      const documents = await latticeApi.evaluateDocumentConsistency(worker);
-      const evidence = await buildVerificationEvidence(worker, documents);
-      const viqResult = await latticeApi.verifyAndDisburse(worker.id, seed.pay_cycle_id, {
-        ...evidence,
-        documents: documentEvidence(documents),
-      });
-      const documentAction = await latticeApi.recordDocumentCheck({
-        worker_id: worker.id,
-        pay_cycle_id: seed.pay_cycle_id,
-        viq_id: viqResult.viq.id,
-        payload: documents,
-      });
-      return { documents, viqResult, documentAction };
+      if (isDelayedDemoVerification(worker)) {
+        await createAndSendDemoVerificationLink(worker);
+        await wait(10_000);
+      }
+      return verifyWorkerNow(worker);
     });
     if (result) {
       setDocumentResults((current) => ({ ...current, [worker.id]: result.documents }));
@@ -379,6 +371,45 @@ export function DashboardPage() {
       setSelectedWorker(worker);
       void hydrateBackendState(seed.ministry, seed.pay_cycle_id, { skipWorkers: true });
     }
+  }
+
+  async function verifyWorkerNow(worker: Worker) {
+    if (!seed) throw new Error("No active payroll batch.");
+    const documents = await latticeApi.evaluateDocumentConsistency(worker);
+    const evidence = await buildVerificationEvidence(worker, documents);
+    const viqResult = await latticeApi.verifyAndDisburse(worker.id, seed.pay_cycle_id, {
+      ...evidence,
+      documents: documentEvidence(documents),
+    });
+    const documentAction = await latticeApi.recordDocumentCheck({
+      worker_id: worker.id,
+      pay_cycle_id: seed.pay_cycle_id,
+      viq_id: viqResult.viq.id,
+      payload: documents,
+    });
+    return { documents, viqResult, documentAction };
+  }
+
+  async function createAndSendDemoVerificationLink(worker: Worker) {
+    if (!seed) return;
+    let result: WorkerVerificationLinkResponse | null = null;
+    try {
+      result = await latticeApi.createWorkerVerificationLink({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        send_sms: true,
+      });
+    } catch {
+      result = await latticeApi.createWorkerVerificationLink({
+        worker_id: worker.id,
+        pay_cycle_id: seed.pay_cycle_id,
+        send_sms: false,
+      }).catch(() => null);
+    }
+    if (result) {
+      setWorkerLinks((current) => ({ ...current, [worker.id]: result }));
+    }
+    setSmsReceipt({ workerName: worker.full_name, phone: worker.phone });
   }
 
   async function buildVerificationEvidence(worker: Worker, documents: DocumentConsistencyResponse) {
@@ -1881,6 +1912,18 @@ function humanizeStatus(value: string) {
 
 function workerIdFromLoading(value: string | null) {
   return value?.startsWith("verify-") ? value.slice("verify-".length) : undefined;
+}
+
+function isDelayedDemoVerification(worker: Worker) {
+  const verificationCase = worker.risk_metadata?.demo_verification_case;
+  return (
+    (worker.worker_code === "OG00001" && verificationCase === "pass") ||
+    (worker.worker_code === "OG00002" && verificationCase === "fail")
+  );
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
 function documentEvidence(documents: DocumentConsistencyResponse) {
