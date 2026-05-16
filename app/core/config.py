@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     cors_allow_origins: list[str] = ["*"]
     public_frontend_url: str = "https://lattice-be.vercel.app"
     public_backend_url: str = "https://lattice-be.onrender.com"
+    public_lattice_url: str = "https://lattice-peach.vercel.app"
 
     database_url: str = "postgresql+psycopg://lattice:lattice@localhost:5432/lattice"
     init_db_on_startup: bool = False
@@ -26,7 +27,7 @@ class Settings(BaseSettings):
     squad_sms_sender_id: str = "Lattice"
 
     credit_price_naira: int = 150
-    default_account_initial_credits: int = 25
+    default_account_initial_credits: int = 0
     billing_enforce_credits: bool = True
 
     ai_worker_url: str | None = None

@@ -66,7 +66,7 @@ class BillingService:
             amount_naira=amount_naira,
             customer_name=payload.customer_name,
             transaction_ref=transaction_reference,
-            callback_url=f"{settings.public_frontend_url.rstrip('/')}/admin/ogun-education?billing_ref={transaction_reference}",
+            callback_url=f"{settings.public_lattice_url.rstrip('/')}/get-started?billing_ref={transaction_reference}",
             metadata={
                 "product": "lattice_credits",
                 "account_id": account.id,
